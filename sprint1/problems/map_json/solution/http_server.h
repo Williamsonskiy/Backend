@@ -1,5 +1,7 @@
 #pragma once
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <iostream>
@@ -21,7 +23,6 @@ void ReportError(beast::error_code ec, std::string_view what);
 template <typename RequestHandler>
 class Session : public std::enable_shared_from_this<Session<RequestHandler>> {
 public:
-    // Принимаем RequestHandler по значению для корректной передачи из std::make_shared
     Session(tcp::socket&& socket, RequestHandler request_handler)
         : stream_(std::move(socket))
         , request_handler_(std::move(request_handler)) {
