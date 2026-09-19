@@ -160,10 +160,10 @@ private:
         std::string_view allow_header = {}
     ) {
         http::response<http::string_body> res{status, version};
-        res.set(http::field::content_type, ContentType::APPLICATION_JSON);
-        res.set(http::field::cache_control, "no-cache"sv);
+        res.set(http::field::content_type, std::string(ContentType::APPLICATION_JSON));
+        res.set(http::field::cache_control, "no-cache");
         if (!allow_header.empty()) {
-            res.set(http::field::allow, allow_header);
+            res.set(http::field::allow, std::string(allow_header));
         }
         res.keep_alive(keep_alive);
 
