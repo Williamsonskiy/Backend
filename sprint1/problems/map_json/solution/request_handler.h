@@ -39,7 +39,9 @@ public:
             return;
         }
 
-        std::string_view target = req.target();
+        // ИСПРАВЛЕНО: Явное создание std::string_view из boost::beast::string_view
+        std::string_view target{req.target().data(), req.target().size()};
+
         if (!target.starts_with("/api/v1/maps")) {
             send(MakeJsonResponse(http::status::bad_request,
                                  MakeErrorJson("badRequest", "Bad request"),
@@ -145,7 +147,6 @@ private:
                                 req.version(), req.keep_alive(), req.method());
     }
 
-    // ИСПРАВЛЕНО: Объявления оставлены, реализация унесена в cpp
     static std::string MakeErrorJson(std::string_view code, std::string_view message);
 
     static http::response<http::string_body> MakeJsonResponse(
