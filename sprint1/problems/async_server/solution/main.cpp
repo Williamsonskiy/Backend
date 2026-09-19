@@ -44,7 +44,7 @@ StringResponse HandleRequest(StringRequest&& req) {
 
     // Если метод не GET и не HEAD
     if (req.method() != http::verb::get && req.method() != http::verb::head) {
-        auto response = make_response(http::status::method_not_allowed, "Invalid method."sv);
+        auto response = make_response(http::status::method_not_allowed, "Invalid method"sv);
         response.set(http::field::allow, "GET, HEAD"sv);
         return response;
     }
