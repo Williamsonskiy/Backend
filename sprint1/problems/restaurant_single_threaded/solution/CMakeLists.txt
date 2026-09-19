@@ -14,5 +14,5 @@ endif()
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-add_executable(restaurant src/main.cpp)
+add_executable(restaurant main.cpp)
 target_link_libraries(restaurant PRIVATE Threads::Threads)
