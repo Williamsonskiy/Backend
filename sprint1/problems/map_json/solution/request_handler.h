@@ -5,6 +5,7 @@
 #include <boost/json.hpp>
 #include <string_view>
 #include <utility>
+#include <string>
 
 namespace http_handler {
 
@@ -144,12 +145,8 @@ private:
                                 req.version(), req.keep_alive(), req.method());
     }
 
-    static std::string MakeErrorJson(std::string_view code, std::string_view message) {
-        json::object obj;
-        obj["code"] = std::string(code);
-        obj["message"] = std::string(message);
-        return json::serialize(obj);
-    }
+    // ИСПРАВЛЕНО: Объявления оставлены, реализация унесена в cpp
+    static std::string MakeErrorJson(std::string_view code, std::string_view message);
 
     static http::response<http::string_body> MakeJsonResponse(
         http::status status,
@@ -158,23 +155,7 @@ private:
         bool keep_alive,
         http::verb method,
         std::string_view allow_header = {}
-    ) {
-        http::response<http::string_body> res{status, version};
-        res.set(http::field::content_type, std::string(ContentType::APPLICATION_JSON));
-        res.set(http::field::cache_control, "no-cache");
-        if (!allow_header.empty()) {
-            res.set(http::field::allow, std::string(allow_header));
-        }
-        res.keep_alive(keep_alive);
-
-        if (method == http::verb::head) {
-            res.content_length(body.size());
-        } else {
-            res.body() = std::move(body);
-            res.prepare_payload();
-        }
-        return res;
-    }
+    );
 };
 
 }  // namespace http_handler
