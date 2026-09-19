@@ -15,12 +15,12 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_executable(cafeteria
-    src/main.cpp
-    src/cafeteria.h
-    src/result.h
-    src/hotdog.h
-    src/gascooker.h
-    src/ingredients.h
-    src/clock.h
+    main.cpp
+    cafeteria.h
+    result.h
+    hotdog.h
+    gascooker.h
+    ingredients.h
+    clock.h
 )
 target_link_libraries(cafeteria PRIVATE Threads::Threads)
