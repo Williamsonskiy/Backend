@@ -1,4 +1,5 @@
 #pragma once
+
 #include <compare>
 #include <utility>
 
@@ -10,25 +11,32 @@ public:
     using ValueType = Value;
     using TagType = Tag;
 
-    explicit Tagged(Value v) : value_(std::move(v)) {}
+    explicit Tagged(Value&& v)
+        : value_(std::move(v)) {
+    }
+    explicit Tagged(const Value& v)
+        : value_(v) {
+    }
 
-    const Value& operator*() const noexcept { return value_; }
-    Value& operator*() noexcept { return value_; }
+    const Value& operator*() const noexcept {
+        return value_;
+    }
 
-    const Value* operator->() const noexcept { return &value_; }
-    Value* operator->() noexcept { return &value_; }
+    Value& operator*() noexcept {
+        return value_;
+    }
 
-    auto operator<=>(const Tagged&) const = default;
+    auto operator<=>(const Tagged<Value, Tag>&) const = default;
 
 private:
     Value value_;
 };
 
 template <typename TaggedValue>
-struct TaggedHash {
-    std::size_t operator()(const TaggedValue& value) const noexcept {
+struct TaggedHasher {
+    size_t operator()(const TaggedValue& value) const {
         return std::hash<typename TaggedValue::ValueType>{}(*value);
     }
 };
 
-}  // namespace util
+}
