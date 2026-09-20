@@ -10,6 +10,21 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 using namespace std::literals;
 
+namespace NetEndpoint {
+constexpr std::string_view api_v1_maps = "/api/v1/maps";
+constexpr std::string_view api_v1_maps_prefix = "/api/v1/maps/";
+constexpr std::string_view api_prefix = "/api/";
+}
+
+namespace JsonKey {
+constexpr std::string_view code = "code";
+constexpr std::string_view message = "message";
+constexpr std::string_view map_not_found = "mapNotFound";
+constexpr std::string_view map_not_found_msg = "Map not found";
+constexpr std::string_view bad_request = "badRequest";
+constexpr std::string_view bad_request_msg = "Bad request";
+}
+
 class RequestHandler {
 public:
     explicit RequestHandler(model::Game& game)
@@ -40,22 +55,22 @@ private:
 
         std::string_view target = req.target();
 
-        if (target.starts_with("/api/")) {
-            if (target == "/api/v1/maps"sv) {
+        if (target.starts_with(NetEndpoint::api_prefix)) {
+            if (target == NetEndpoint::api_v1_maps) {
                 if (req.method() == http::verb::get || req.method() == http::verb::head) {
                     return text_response(http::status::ok, MakeMapsListResponseBody());
                 }
-            } else if (target.starts_with("/api/v1/maps/"sv)) {
-                if (target.size() > "/api/v1/maps/"sv.size()) {
+            } else if (target.starts_with(NetEndpoint::api_v1_maps_prefix)) {
+                if (target.size() > NetEndpoint::api_v1_maps_prefix.size()) {
                     if (req.method() == http::verb::get || req.method() == http::verb::head) {
-                        std::string_view map_id = target.substr("/api/v1/maps/"sv.size());
+                        std::string_view map_id = target.substr(NetEndpoint::api_v1_maps_prefix.size());
                         auto map = game_.FindMap(model::Map::Id{std::string(map_id)});
                         if (map) {
                             return text_response(http::status::ok, MakeMapResponseBody(*map));
                         } else {
                             boost::json::object obj;
-                            obj["code"] = "mapNotFound";
-                            obj["message"] = "Map not found";
+                            obj[JsonKey::code.data()] = JsonKey::map_not_found;
+                            obj[JsonKey::message.data()] = JsonKey::map_not_found_msg;
                             return text_response(http::status::not_found, boost::json::serialize(obj));
                         }
                     }
@@ -63,14 +78,14 @@ private:
             }
 
             boost::json::object obj;
-            obj["code"] = "badRequest";
-            obj["message"] = "Bad request";
+            obj[JsonKey::code.data()] = JsonKey::bad_request;
+            obj[JsonKey::message.data()] = JsonKey::bad_request_msg;
             return text_response(http::status::bad_request, boost::json::serialize(obj));
         }
 
         boost::json::object obj;
-        obj["code"] = "badRequest";
-        obj["message"] = "Bad request";
+        obj[JsonKey::code.data()] = JsonKey::bad_request;
+        obj[JsonKey::message.data()] = JsonKey::bad_request_msg;
         return text_response(http::status::bad_request, boost::json::serialize(obj));
     }
 
