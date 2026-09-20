@@ -1,11 +1,15 @@
-FROM gcc:11-bookworm
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && \
     apt install -y \
-      python3-pip \
+      build-essential \
+      g++ \
       cmake \
+      python3-pip \
     && \
-    pip3 install --break-system-packages conan==1.*
+    pip3 install conan==1.*
 
 COPY conanfile.txt /app/
 RUN mkdir /app/build && cd /app/build && \
