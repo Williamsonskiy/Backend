@@ -4,6 +4,7 @@
 
 #include <boost/json.hpp>
 #include <string_view>
+#include <string>
 
 namespace http_handler {
 namespace beast = boost::beast;
@@ -69,8 +70,8 @@ private:
                             return text_response(http::status::ok, MakeMapResponseBody(*map));
                         } else {
                             boost::json::object obj;
-                            obj[JsonKey::code.data()] = JsonKey::map_not_found;
-                            obj[JsonKey::message.data()] = JsonKey::map_not_found_msg;
+                            obj[std::string(JsonKey::code)] = std::string(JsonKey::map_not_found);
+                            obj[std::string(JsonKey::message)] = std::string(JsonKey::map_not_found_msg);
                             return text_response(http::status::not_found, boost::json::serialize(obj));
                         }
                     }
@@ -78,14 +79,14 @@ private:
             }
 
             boost::json::object obj;
-            obj[JsonKey::code.data()] = JsonKey::bad_request;
-            obj[JsonKey::message.data()] = JsonKey::bad_request_msg;
+            obj[std::string(JsonKey::code)] = std::string(JsonKey::bad_request);
+            obj[std::string(JsonKey::message)] = std::string(JsonKey::bad_request_msg);
             return text_response(http::status::bad_request, boost::json::serialize(obj));
         }
 
         boost::json::object obj;
-        obj[JsonKey::code.data()] = JsonKey::bad_request;
-        obj[JsonKey::message.data()] = JsonKey::bad_request_msg;
+        obj[std::string(JsonKey::code)] = std::string(JsonKey::bad_request);
+        obj[std::string(JsonKey::message)] = std::string(JsonKey::bad_request_msg);
         return text_response(http::status::bad_request, boost::json::serialize(obj));
     }
 
