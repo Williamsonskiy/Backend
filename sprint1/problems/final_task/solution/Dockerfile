@@ -1,15 +1,15 @@
-FROM gcc:11.4
+FROM gcc:11-bookworm
 
 RUN apt update && \
     apt install -y \
       python3-pip \
       cmake \
     && \
-    pip3 install conan==1.*
+    pip3 install --break-system-packages conan==1.*
 
 COPY conanfile.txt /app/
 RUN mkdir /app/build && cd /app/build && \
-    conan install .. --build=missing
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11
 
 COPY . /app
 RUN cd /app/build && \
