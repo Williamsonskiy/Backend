@@ -1,5 +1,5 @@
 #include "sdk.h"
-//
+
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <iostream>
@@ -8,65 +8,58 @@
 
 #include "json_loader.h"
 #include "request_handler.h"
-#include "http_server.h"
+
+using namespace std::literals;
 
 namespace {
-namespace net = boost::asio;
-using namespace std::literals;
-namespace sys = boost::system;
 
-// Запускает функцию fn на n потоках, включая текущий
 template <typename Fn>
 void RunWorkers(unsigned n, const Fn& fn) {
     n = std::max(1u, n);
-    std::vector<std::jthread> workers;
+    std::vector<std::thread> workers;
     workers.reserve(n - 1);
-    while (--n) {
+    for (unsigned i = 0; i < n - 1; ++i) {
         workers.emplace_back(fn);
     }
     fn();
+    for (auto& w : workers) {
+        if (w.joinable()) {
+            w.join();
+        }
+    }
 }
 
-}  // namespace
+}
 
 int main(int argc, const char* argv[]) {
     if (argc != 2) {
-        std::cerr << "Usage: game_server <path-to-config-file>"sv << std::endl;
+        std::cerr << "Usage: game_server <game-config-json>"sv << std::endl;
         return EXIT_FAILURE;
     }
-
     try {
-        // 1. Загружаем карту из файла и строим модель игры
         model::Game game = json_loader::LoadGame(argv[1]);
 
-        // 2. Инициализируем io_context
-        const unsigned num_threads = std::thread::hardware_concurrency();
-        net::io_context ioc(num_threads);
+        const unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
+        boost::asio::io_context ioc(num_threads);
 
-        // 3. Добавляем обработчик сигналов SIGINT и SIGTERM
-        net::signal_set signals(ioc, SIGINT, SIGTERM);
-        signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
+        boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
+        signals.async_wait([&ioc](const boost::system::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
                 ioc.stop();
             }
         });
 
-        // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
+        const auto address = boost::asio::ip::make_address("0.0.0.0");
+        constexpr boost::asio::ip::port_type port = 8080;
+
         http_handler::RequestHandler handler{game};
 
-        // 5. Запускаем обработчик HTTP-запросов, слушающий 0.0.0.0:8080
-        const auto address = net::ip::make_address("0.0.0.0");
-        constexpr net::ip::port_type port = 8080;
-        
-        // ИСПРАВЛЕНО: добавили auto&& endpoint первым аргументом лямбды
-        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& endpoint, auto&& req, auto&& send) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& sender) {
+            handler(std::forward<decltype(req)>(req), std::forward<decltype(sender)>(sender));
         });
 
-        // Сообщение о готовности для автотестов
         std::cout << "Server has started..."sv << std::endl;
 
-        // 6. Запускаем обработку асинхронных операций
         RunWorkers(num_threads, [&ioc] {
             ioc.run();
         });
