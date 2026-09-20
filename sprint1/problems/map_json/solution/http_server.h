@@ -61,9 +61,10 @@ private:
 template <typename RequestHandler>
 class Session : public SessionBase, public std::enable_shared_from_this<Session<RequestHandler>> {
 public:
-    Session(tcp::socket&& socket, RequestHandler&& request_handler)
+    template <typename Handler>
+    Session(tcp::socket&& socket, Handler&& request_handler)
         : SessionBase(std::move(socket))
-        , request_handler_(std::forward<RequestHandler>(request_handler)) {
+        , request_handler_(std::forward<Handler>(request_handler)) {
     }
 
 private:
@@ -83,10 +84,11 @@ private:
 template <typename RequestHandler>
 class Listener : public std::enable_shared_from_this<Listener<RequestHandler>> {
 public:
-    Listener(net::io_context& ioc, const tcp::endpoint& endpoint, RequestHandler&& request_handler)
+    template <typename Handler>
+    Listener(net::io_context& ioc, const tcp::endpoint& endpoint, Handler&& request_handler)
         : ioc_(ioc)
         , acceptor_(net::make_strand(ioc))
-        , request_handler_(std::forward<RequestHandler>(request_handler)) {
+        , request_handler_(std::forward<Handler>(request_handler)) {
         acceptor_.open(endpoint.protocol());
         acceptor_.set_option(net::socket_base::reuse_address(true));
         acceptor_.bind(endpoint);
