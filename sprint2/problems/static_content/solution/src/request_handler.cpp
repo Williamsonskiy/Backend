@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cctype>
+#include <algorithm>
 
 namespace http_handler {
 
@@ -12,12 +13,12 @@ std::string urlDecode(const std::string& encodedString) {
     for (size_t i = 0; i < encodedString.size(); ++i) {
         if (encodedString[i] == '%') {
             if (i + 2 < encodedString.size()) {
-                int high = std::isxdigit(encodedString[i + 1]) ?
-                    (std::isdigit(encodedString[i + 1]) ? encodedString[i + 1] - '0' :
-                            std::tolower(encodedString[i + 1]) - 'a' + 10) : -1;
-                int low = std::isxdigit(encodedString[i + 2]) ?
-                    (std::isdigit(encodedString[i + 2]) ? encodedString[i + 2] - '0' :
-                            std::tolower(encodedString[i + 2]) - 'a' + 10) : -1;
+                int high = std::isxdigit(static_cast<unsigned char>(encodedString[i + 1])) ?
+                    (std::isdigit(static_cast<unsigned char>(encodedString[i + 1])) ? encodedString[i + 1] - '0' :
+                            std::tolower(static_cast<unsigned char>(encodedString[i + 1])) - 'a' + 10) : -1;
+                int low = std::isxdigit(static_cast<unsigned char>(encodedString[i + 2])) ?
+                    (std::isdigit(static_cast<unsigned char>(encodedString[i + 2])) ? encodedString[i + 2] - '0' :
+                            std::tolower(static_cast<unsigned char>(encodedString[i + 2])) - 'a' + 10) : -1;
 
                 if (high != -1 && low != -1) {
                     char decodedChar = static_cast<char>((high << 4) | low);
@@ -37,13 +38,32 @@ std::string urlDecode(const std::string& encodedString) {
 using namespace std::literals;
 namespace fs = std::filesystem;
 
+// ИСПРАВЛЕНО: Безопасная проверка подкаталога, которая не ломается об слэши на конце
 bool IsSubPath(fs::path path, fs::path base) {
-    for (auto b = base.begin(), p = path.begin(); b != base.end(); ++b, ++p) {
-        if (p == path.end() || *p != *b) {
-            return false;
+    path = fs::weakly_canonical(path);
+    base = fs::weakly_canonical(base);
+
+    auto b = base.begin();
+    auto p = path.begin();
+
+    while (b != base.end() && p != path.end()) {
+        if (*b != *p) {
+            break;
         }
+        ++b;
+        ++p;
     }
-    return true;
+
+    if (b == base.end()) {
+        return true;
+    }
+
+    // Если base заканчивается на слэш, его последний итератор будет указывать на пустую строку
+    if (b->string().empty() && ++b == base.end()) {
+        return true;
+    }
+
+    return false;
 }
 
 // Таблица соответствий расширений файлов и Content-Type
@@ -71,7 +91,7 @@ const std::unordered_map<std::string, std::string> contentTypeMap = {
 
 std::string getContentType(const fs::path& filePath) {
     std::string extension = filePath.extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c){ return std::tolower(c); });
 
     auto it = contentTypeMap.find(extension);
     if (it != contentTypeMap.end()) {
