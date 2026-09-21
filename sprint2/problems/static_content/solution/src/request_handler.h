@@ -32,8 +32,8 @@ class RequestHandler {
 public:
     explicit RequestHandler(model::Game& game, fs::path static_root)
         : game_{game}
-        // Используем canonical для того, чтобы 100% разрешить все симлинки корня сразу
-        , static_root_{fs::canonical(static_root)} {
+        // Возвращаем weakly_canonical, чтобы не падать, если папка static пока не создана
+        , static_root_{fs::weakly_canonical(static_root)} {
     }
 
     RequestHandler(const RequestHandler&) = delete;
@@ -115,7 +115,7 @@ private:
         }
 
         std::string_view target = req.target();
-        // Отрезаем query параметры (всё что после знака вопроса)
+        // Отрезаем query параметры
         if (auto pos = target.find('?'); pos != std::string_view::npos) {
             target = target.substr(0, pos);
         }
@@ -126,7 +126,6 @@ private:
             return;
         }
 
-        // Удаляем ведущий '/'
         std::string rel_url_str = decoded_url.substr(1);
         fs::path req_path = static_root_ / rel_url_str;
 
