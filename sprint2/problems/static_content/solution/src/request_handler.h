@@ -38,8 +38,7 @@ public:
 
     template <typename Body, typename Allocator, typename Send>
     void operator()(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
-        // Передаем req и send через std::move, чтобы избежать лишних копирований. 
-        // Ставим mutable, чтобы внутри можно было вызывать перемещение send.
+        // Передаем req и send через std::move, чтобы избежать лишнего копирования тела запроса
         net::dispatch(strand_, [self = shared_from_this(), req = std::move(req), send = std::move(send)]() mutable {
 
         if (req.method() != http::verb::get && req.method() != http::verb::head) {
@@ -60,15 +59,13 @@ public:
         const std::string start = "/api/v1/maps";
         const std::string api = "/api/";
 
-        // ИСПРАВЛЕНИЕ: Используем req.target() возвращающий string_view, БЕЗ .data()
-        std::string_view target = req.target();
-        
-        // Отрезаем параметры запроса (всё, что после знака вопроса)
-        if (auto pos = target.find('?'); pos != std::string_view::npos) {
-            target = target.substr(0, pos);
+        // ИСПРАВЛЕНИЕ: Берем target без .data(), чтобы не зацепить мусор, 
+        // и отрезаем query-параметры (знак ? и все что после него)
+        std::string_view target_view = req.target();
+        if (auto pos = target_view.find('?'); pos != std::string_view::npos) {
+            target_view = target_view.substr(0, pos);
         }
-
-        std::string path(target);
+        std::string path{target_view};
 
         if (path.starts_with(api)) {
 
@@ -141,7 +138,7 @@ public:
         } else {
 
             if (path == "/"s) {
-                path = "/index.html"s; // Лучше ставить абсолютный путь от корня (со слэшем)
+                path = "index.html"s;
             }
 
             fs::path de_path{urlDecode(path)};
@@ -164,8 +161,7 @@ public:
                     beast::error_code ec;
                     http::file_body::value_type body;
 
-                    // Убрали дублирование переменной ec
-                    if (body.open(abs_path.c_str(), beast::file_mode::read, ec), ec) {
+                    if (sys::error_code ec; body.open(abs_path.c_str(), beast::file_mode::read, ec), ec) {
                         std::cerr << "Failed to open file "sv << abs_path.c_str() << std::endl;
                         return;
                     }
@@ -197,9 +193,7 @@ public:
                 send(std::move(res));
                 return;
             }
-
         }
-
         });
     }
 
