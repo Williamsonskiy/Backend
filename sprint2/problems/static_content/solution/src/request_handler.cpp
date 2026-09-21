@@ -1,27 +1,24 @@
 #include "request_handler.h"
+
 #include <string>
 #include <cctype>
 #include <algorithm>
-#include <unordered_map>
 
 namespace http_handler {
 
-std::string UrlDecode(std::string_view encodedString) {
+std::string urlDecode(const std::string& encodedString) {
     std::string decoded;
     decoded.reserve(encodedString.size());
 
     for (size_t i = 0; i < encodedString.size(); ++i) {
         if (encodedString[i] == '%') {
             if (i + 2 < encodedString.size()) {
-                auto hex_to_int = [](char c) -> int {
-                    if (c >= '0' && c <= '9') return c - '0';
-                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-                    return -1;
-                };
-
-                int high = hex_to_int(encodedString[i + 1]);
-                int low = hex_to_int(encodedString[i + 2]);
+                int high = std::isxdigit(encodedString[i + 1]) ?
+                    (std::isdigit(encodedString[i + 1]) ? encodedString[i + 1] - '0' :
+                            std::tolower(encodedString[i + 1]) - 'a' + 10) : -1;
+                int low = std::isxdigit(encodedString[i + 2]) ?
+                    (std::isdigit(encodedString[i + 2]) ? encodedString[i + 2] - '0' :
+                            std::tolower(encodedString[i + 2]) - 'a' + 10) : -1;
 
                 if (high != -1 && low != -1) {
                     char decodedChar = static_cast<char>((high << 4) | low);
@@ -31,30 +28,30 @@ std::string UrlDecode(std::string_view encodedString) {
                 }
             }
             decoded += encodedString[i];
-        } else if (encodedString[i] == '+') {
-            decoded += ' ';
         } else {
-            decoded += encodedString[i];
+            decoded.push_back(encodedString[i] == '+' ? ' ' : encodedString[i]);
         }
     }
     return decoded;
 }
 
-// Защищенный IsSubPath, который работает на GCC 11
+using namespace std::literals;
+namespace fs = std::filesystem;
+
+
 bool IsSubPath(fs::path path, fs::path base) {
-    path = fs::weakly_canonical(path);
-    base = fs::weakly_canonical(base);
-    
-    std::string p = path.generic_string();
-    std::string b = base.generic_string();
-    
-    if (!b.empty() && b.back() != '/') {
-        b += '/';
+    //path = fs::weakly_canonical(path);
+    //base = fs::weakly_canonical(base);
+
+    for (auto b = base.begin(), p = path.begin(); b != base.end(); ++b, ++p) {
+        if (p == path.end() || *p != *b) {
+            return false;
+        }
     }
-    
-    return p == base.generic_string() || p.starts_with(b);
+    return true;
 }
 
+// Таблица соответствий расширений файлов и Content-Type
 const std::unordered_map<std::string, std::string> contentTypeMap = {
     {".htm", "text/html"},
     {".html", "text/html"},
@@ -77,9 +74,9 @@ const std::unordered_map<std::string, std::string> contentTypeMap = {
     {".mp3", "audio/mpeg"}
 };
 
-std::string GetContentType(const fs::path& filePath) {
+std::string getContentType(const fs::path& filePath) {
     std::string extension = filePath.extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c){ return std::tolower(c); });
 
     auto it = contentTypeMap.find(extension);
     if (it != contentTypeMap.end()) {
@@ -89,55 +86,54 @@ std::string GetContentType(const fs::path& filePath) {
     return "application/octet-stream";
 }
 
-void SetIdAndName(boost::json::object& json_map, const model::Map* map) {
+void SetIdAndName(boost::json::object& json_map, const model::Map* map){
     json_map["id"] = *(map->GetId());
     json_map["name"] = map->GetName();
 }
 
-void SetRoads(boost::json::object& json_map, const model::Map* map) {
-    boost::json::array roads_json;
+void SetRoads(boost::json::object& json_map, const model::Map* map){
+    json_map["roads"] = boost::json::array{};
     for (const auto& road : map->GetRoads()) {
-        boost::json::object road_obj;
-        road_obj["x0"] = road.GetStart().x;
-        road_obj["y0"] = road.GetStart().y;
+        boost::json::object road_json;
         if (road.IsHorizontal()) {
-            road_obj["x1"] = road.GetEnd().x;
+            road_json["x0"] = road.GetStart().x;
+            road_json["y0"] = road.GetStart().y;
+            road_json["x1"] = road.GetEnd().x;
         } else {
-            road_obj["y1"] = road.GetEnd().y;
+            road_json["x0"] = road.GetStart().x;
+            road_json["y0"] = road.GetStart().y;
+            road_json["y1"] = road.GetEnd().y;
         }
-        roads_json.push_back(std::move(road_obj));
+        json_map["roads"].as_array().push_back(road_json);
     }
-    json_map["roads"] = std::move(roads_json);
 }
 
-void SetBuildings(boost::json::object& json_map, const model::Map* map) {
-    boost::json::array buildings_json;
+void SetBuildings(boost::json::object& json_map, const model::Map* map){
+    json_map["buildings"] = boost::json::array{};
     for (const auto& building : map->GetBuildings()) {
         const auto& bounds = building.GetBounds();
-        boost::json::object building_obj = {
+        boost::json::object building_json = {
             {"x", bounds.position.x},
             {"y", bounds.position.y},
             {"w", bounds.size.width},
             {"h", bounds.size.height}
         };
-        buildings_json.push_back(std::move(building_obj));
+        json_map["buildings"].as_array().push_back(building_json);
     }
-    json_map["buildings"] = std::move(buildings_json);
 }
 
-void SetOffices(boost::json::object& json_map, const model::Map* map) {
-    boost::json::array offices_json;
+void SetOffices(boost::json::object& json_map, const model::Map* map){
+    json_map["offices"] = boost::json::array{};
     for (const auto& office : map->GetOffices()) {
-        boost::json::object office_obj = {
+        boost::json::object office_json = {
             {"id", *office.GetId()},
             {"x", office.GetPosition().x},
             {"y", office.GetPosition().y},
             {"offsetX", office.GetOffset().dx},
             {"offsetY", office.GetOffset().dy}
         };
-        offices_json.push_back(std::move(office_obj));
+        json_map["offices"].as_array().push_back(office_json);
     }
-    json_map["offices"] = std::move(offices_json);
 }
 
 }  // namespace http_handler
