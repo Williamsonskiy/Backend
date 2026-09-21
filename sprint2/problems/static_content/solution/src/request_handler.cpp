@@ -3,6 +3,7 @@
 #include <string>
 #include <cctype>
 #include <algorithm>
+#include <unordered_map>
 
 namespace http_handler {
 
@@ -28,8 +29,10 @@ std::string urlDecode(const std::string& encodedString) {
                 }
             }
             decoded += encodedString[i];
+        } else if (encodedString[i] == '+') {
+            decoded += ' ';
         } else {
-            decoded.push_back(encodedString[i] == '+' ? ' ' : encodedString[i]);
+            decoded += encodedString[i];
         }
     }
     return decoded;
@@ -38,32 +41,19 @@ std::string urlDecode(const std::string& encodedString) {
 using namespace std::literals;
 namespace fs = std::filesystem;
 
-// ИСПРАВЛЕНО: Безопасная проверка подкаталога, которая не ломается об слэши на конце
+// 3. ИСПРАВЛЕНИЕ: Безопасная проверка подкаталога, которая не ломается об слэши на конце пути!
 bool IsSubPath(fs::path path, fs::path base) {
     path = fs::weakly_canonical(path);
     base = fs::weakly_canonical(base);
-
-    auto b = base.begin();
-    auto p = path.begin();
-
-    while (b != base.end() && p != path.end()) {
-        if (*b != *p) {
-            break;
-        }
-        ++b;
-        ++p;
+    
+    std::string p = path.generic_string();
+    std::string b = base.generic_string();
+    
+    if (!b.empty() && b.back() != '/') {
+        b += '/';
     }
-
-    if (b == base.end()) {
-        return true;
-    }
-
-    // Если base заканчивается на слэш, его последний итератор будет указывать на пустую строку
-    if (b->string().empty() && ++b == base.end()) {
-        return true;
-    }
-
-    return false;
+    
+    return p == base.generic_string() || p.starts_with(b);
 }
 
 // Таблица соответствий расширений файлов и Content-Type
