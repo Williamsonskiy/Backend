@@ -24,13 +24,12 @@ void SetRoads(boost::json::object& json_map, const model::Map* map);
 void SetBuildings(boost::json::object& json_map, const model::Map* map);
 void SetOffices(boost::json::object& json_map, const model::Map* map);
 
-class RequestHandler : public std::enable_shared_from_this<RequestHandler>{
+class RequestHandler : public std::enable_shared_from_this<RequestHandler> {
 public:
     explicit RequestHandler(model::Game& game, const std::string& folder, net::strand<net::executor>& strand)
         : game_{game}
-        , folder_{folder}
+        , folder_{fs::weakly_canonical(fs::path(folder))}
         , strand_(strand) {
-        folder_ = fs::weakly_canonical(folder_);
     }
 
     RequestHandler(const RequestHandler&) = delete;
@@ -38,7 +37,6 @@ public:
 
     template <typename Body, typename Allocator, typename Send>
     void operator()(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
-        // Передаем req и send через std::move, чтобы избежать лишнего копирования тела запроса
         net::dispatch(strand_, [self = shared_from_this(), req = std::move(req), send = std::move(send)]() mutable {
 
         if (req.method() != http::verb::get && req.method() != http::verb::head) {
@@ -59,12 +57,15 @@ public:
         const std::string start = "/api/v1/maps";
         const std::string api = "/api/";
 
-        // ИСПРАВЛЕНИЕ: Берем target без .data(), чтобы не зацепить мусор, 
-        // и отрезаем query-параметры (знак ? и все что после него)
+        // 1. ИСПРАВЛЕНО замечание ревьюера:
+        // Используем req.target() напрямую как string_view, БЕЗ .data()
         std::string_view target_view = req.target();
+        
+        // Отрезаем параметры запроса (всё, что после знака вопроса '?', если они есть)
         if (auto pos = target_view.find('?'); pos != std::string_view::npos) {
             target_view = target_view.substr(0, pos);
         }
+
         std::string path{target_view};
 
         if (path.starts_with(api)) {
@@ -84,7 +85,7 @@ public:
                 return;
             }
 
-            if (path.size() <= start.size()+1) { // Первый тип запроса, не указана карта
+            if (path.size() <= start.size() + 1) { // Первый тип запроса, не указана карта
                 auto maps = self->game_.GetMaps();
                 boost::json::array maps_array;
 
@@ -138,20 +139,28 @@ public:
         } else {
 
             if (path == "/"s) {
-                path = "index.html"s;
+                path = "/index.html"s;
             }
 
-            fs::path de_path{urlDecode(path)};
-            fs::path uri_path = de_path.lexically_normal();
-
-            if (uri_path.has_root_path()) {
-                uri_path = uri_path.relative_path();
+            std::string decoded_path = urlDecode(path);
+            
+            // 2. ИСПРАВЛЕНИЕ путей: превращаем путь в относительный
+            // гарантированно отрезая начальный слэш для безопасного объединения путей
+            std::string rel_path_str;
+            if (!decoded_path.empty() && decoded_path[0] == '/') {
+                rel_path_str = decoded_path.substr(1);
+            } else {
+                rel_path_str = decoded_path;
             }
+
+            fs::path uri_path(rel_path_str);
+            uri_path = uri_path.lexically_normal();
 
             fs::path abs_path = fs::weakly_canonical(self->folder_ / uri_path);
 
             if (IsSubPath(abs_path, self->folder_)) {
-                if (fs::exists(abs_path)) {
+                // Добавлена проверка is_regular_file
+                if (fs::exists(abs_path) && fs::is_regular_file(abs_path)) {
                     http::response<http::file_body> res;
                     res.version(11);
                     std::string contentType = getContentType(abs_path);
@@ -161,13 +170,12 @@ public:
                     beast::error_code ec;
                     http::file_body::value_type body;
 
-                    if (sys::error_code ec; body.open(abs_path.c_str(), beast::file_mode::read, ec), ec) {
+                    if (body.open(abs_path.c_str(), beast::file_mode::read, ec), ec) {
                         std::cerr << "Failed to open file "sv << abs_path.c_str() << std::endl;
                         return;
                     }
 
                     res.body() = std::move(body);
-
                     res.prepare_payload();
                     send(std::move(res));
                     return;
@@ -176,8 +184,7 @@ public:
                     res.version(11);
                     res.result(http::status::not_found);
                     res.insert(http::field::content_type, "text/plain"sv);
-                    std::string error_message = "404 Not Found File: "s + abs_path.string();
-                    res.body() = error_message;
+                    res.body() = "404 Not Found File";
                     res.prepare_payload();
                     send(std::move(res));
                     return;
@@ -187,13 +194,13 @@ public:
                 res.version(11);
                 res.result(http::status::bad_request);
                 res.insert(http::field::content_type, "text/plain"sv);
-                std::string error_message = "Error path to file: "s + abs_path.string();
-                res.body() = error_message;
+                res.body() = "Bad request";
                 res.prepare_payload();
                 send(std::move(res));
                 return;
             }
         }
+
         });
     }
 
