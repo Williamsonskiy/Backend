@@ -76,6 +76,10 @@ unsigned char HexToChar(char ch) {
     return 0;
 }
 
+bool IsHexDigit(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
 } // namespace
 
 std::string RequestHandler::UrlDecode(std::string_view src) {
@@ -83,7 +87,7 @@ std::string RequestHandler::UrlDecode(std::string_view src) {
     ret.reserve(src.size());
     for (size_t i = 0; i < src.size(); ++i) {
         if (src[i] == '%') {
-            if (i + 2 < src.size()) {
+            if (i + 2 < src.size() && IsHexDigit(src[i + 1]) && IsHexDigit(src[i + 2])) {
                 auto high = HexToChar(src[i + 1]);
                 auto low = HexToChar(src[i + 2]);
                 ret += static_cast<char>((high << 4) | low);
