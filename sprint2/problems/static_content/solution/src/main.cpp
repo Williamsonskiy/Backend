@@ -1,74 +1,71 @@
 #include "sdk.h"
-
-#include <boost/asio/io_context.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/asio/io_context.hpp>
 #include <iostream>
 #include <thread>
 
 #include "json_loader.h"
 #include "request_handler.h"
 
+using namespace std::literals;
 namespace net = boost::asio;
 namespace sys = boost::system;
-namespace http = boost::beast::http;
 
 namespace {
 
-// Функция запускает `count` рабочих потоков io_context
+// Запускает функцию fn на n потоках, включая текущий
 template <typename Fn>
-void RunWorkers(unsigned count, const Fn& fn) { offset:
-    count = std::max(1u, count);
-    std::vector<std::thread> v;
-    v.reserve(count - 1);
-    for (auto i = count - 1; i > 0; --i) {
-        v.emplace_back(fn);
+void RunWorkers(unsigned n, const Fn& fn) {
+    n = std::max(1u, n);
+    std::vector<std::jthread> workers;
+    workers.reserve(n - 1);
+    // Запускаем n-1 рабочих потоков, выполняющих функцию fn
+    while (--n) {
+        workers.emplace_back(fn);
     }
     fn();
-    for (auto& t : v) {
-        t.join();
-    }
 }
 
 }  // namespace
 
 int main(int argc, const char* argv[]) {
     if (argc != 3) {
-        std::cerr << "Usage: game_server <path-to-json-config> <path-to-static-files>" << std::endl;
+        std::cerr << "Usage: game_server <game-config-json> <folder_name>"sv << std::endl;
         return EXIT_FAILURE;
     }
-
     try {
-        // 1. Загружаем карту из JSON-файла
+        // 1. Загружаем карту из файла и строим модель игры
         model::Game game = json_loader::LoadGame(argv[1]);
-
-        // Путь к статическим файлам из 2-го аргумента
-        std::filesystem::path static_path{argv[2]};
+        std::string folder = argv[2];
 
         // 2. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
 
-        // 3. Добавляем обработчик сигналов для изящного завершения работы
+        net::strand<net::executor> strand(ioc.get_executor()); // strand для handler request
+
+        // 3. Добавляем асинхронный обработчик сигналов SIGINT и SIGTERM
         net::signal_set signals(ioc, SIGINT, SIGTERM);
-        signals.async_wait([&ioc](const sys::error_code& ec, int signal_number) {
+        signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
                 ioc.stop();
             }
         });
 
-        // 4. Создаем обработчик HTTP-запросов
-        http_handler::RequestHandler handler{game, static_path};
+        // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
+        auto handler = std::make_shared<http_handler::RequestHandler>(game, folder, strand);
 
-        // 5. Запускаем HTTP-сервер
+        // 5. Запустить обработчик HTTP-запросов
         const auto address = net::ip::make_address("0.0.0.0");
         constexpr net::ip::port_type port = 8080;
 
         http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
+            (*handler)(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
         });
 
-        // ВАЖНО для тестов: Сообщение о старте сервера и очистка буфера std::endl
-        std::cout << "Server started at port " << port << std::endl;
+        std::cout << "Server has started..."sv << std::endl;
 
         // 6. Запускаем обработку асинхронных операций
         RunWorkers(std::max(1u, num_threads), [&ioc] {
@@ -78,6 +75,4 @@ int main(int argc, const char* argv[]) {
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
-
-    return EXIT_SUCCESS;
 }
