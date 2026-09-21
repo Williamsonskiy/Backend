@@ -83,7 +83,9 @@ std::string RequestHandler::UrlDecode(std::string_view src) {
     ret.reserve(src.size());
     for (size_t i = 0; i < src.size(); ++i) {
         if (src[i] == '%') {
-            if (i + 2 < src.size() && std::isxdigit(src[i + 1]) && std::isxdigit(src[i + 2])) {
+            if (i + 2 < src.size() && 
+                std::isxdigit(static_cast<unsigned char>(src[i + 1])) && 
+                std::isxdigit(static_cast<unsigned char>(src[i + 2]))) {
                 auto high = HexToChar(src[i + 1]);
                 auto low = HexToChar(src[i + 2]);
                 ret += static_cast<char>((high << 4) | low);
@@ -129,8 +131,30 @@ bool RequestHandler::IsSubPath(fs::path path, fs::path base) {
     path = fs::weakly_canonical(path);
     base = fs::weakly_canonical(base);
 
-    auto [b_beg, p_beg] = std::mismatch(base.begin(), base.end(), path.begin(), path.end());
-    return b_beg == base.end();
+    auto b = base.begin();
+    auto p = path.begin();
+
+    // Сравниваем каждый компонент. 
+    while (b != base.end() && p != path.end()) {
+        if (*b != *p) {
+            break;
+        }
+        ++b;
+        ++p;
+    }
+
+    // Если мы дошли до конца base, то path является его подкаталогом.
+    if (b == base.end()) {
+        return true;
+    }
+
+    // Если base заканчивается на слэш, его последний итератор будет указывать на пустую строку,
+    // которую можно безвредно проигнорировать.
+    if (b->string().empty() && ++b == base.end()) {
+        return true;
+    }
+
+    return false;
 }
 
 std::string RequestHandler::MakeMapsListResponseBody() const {
