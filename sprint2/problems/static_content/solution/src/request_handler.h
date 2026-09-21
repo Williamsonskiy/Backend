@@ -119,8 +119,9 @@ private:
             return;
         }
 
-        fs::path rel_path = fs::path(decoded_url).relative_path();
-        fs::path req_path = static_root_ / rel_path;
+        // Убираем ведущий слэш '/', чтобы путь считался относительным и не сбрасывал static_root_
+        std::string_view rel_url_str = std::string_view{decoded_url}.substr(1);
+        fs::path req_path = static_root_ / rel_url_str;
 
         if (fs::is_directory(req_path)) {
             req_path /= "index.html";
