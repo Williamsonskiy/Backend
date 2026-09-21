@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread json)
 
 add_executable(game_server
     src/main.cpp
@@ -22,4 +22,5 @@ target_include_directories(game_server PRIVATE src)
 target_link_libraries(game_server PRIVATE
     Boost::system
     Boost::thread
+    Boost::json
 )
