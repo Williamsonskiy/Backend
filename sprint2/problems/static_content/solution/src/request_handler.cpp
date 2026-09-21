@@ -1,171 +1,143 @@
 #include "request_handler.h"
-#include <algorithm>
+#include <string>
 #include <cctype>
-#include <sstream>
+#include <algorithm>
+#include <unordered_map>
 
 namespace http_handler {
 
-namespace {
+std::string UrlDecode(std::string_view encodedString) {
+    std::string decoded;
+    decoded.reserve(encodedString.size());
 
-using namespace std::literals;
+    for (size_t i = 0; i < encodedString.size(); ++i) {
+        if (encodedString[i] == '%') {
+            if (i + 2 < encodedString.size()) {
+                auto hex_to_int = [](char c) -> int {
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                    return -1;
+                };
 
-constexpr std::string_view KEY_ID = "id";
-constexpr std::string_view KEY_NAME = "name";
-constexpr std::string_view KEY_ROADS = "roads";
-constexpr std::string_view KEY_BUILDINGS = "buildings";
-constexpr std::string_view KEY_OFFICES = "offices";
-constexpr std::string_view KEY_X0 = "x0";
-constexpr std::string_view KEY_Y0 = "y0";
-constexpr std::string_view KEY_X1 = "x1";
-constexpr std::string_view KEY_Y1 = "y1";
-constexpr std::string_view KEY_X = "x";
-constexpr std::string_view KEY_Y = "y";
-constexpr std::string_view KEY_W = "w";
-constexpr std::string_view KEY_H = "h";
-constexpr std::string_view KEY_OFFSET_X = "offsetX";
-constexpr std::string_view KEY_OFFSET_Y = "offsetY";
+                int high = hex_to_int(encodedString[i + 1]);
+                int low = hex_to_int(encodedString[i + 2]);
 
-boost::json::array SerializeRoads(const model::Map& map) {
-    boost::json::array roads_arr;
-    for (const auto& road : map.GetRoads()) {
-        boost::json::object road_obj;
-        road_obj[KEY_X0.data()] = road.GetStart().x;
-        road_obj[KEY_Y0.data()] = road.GetStart().y;
-        if (road.IsHorizontal()) {
-            road_obj[KEY_X1.data()] = road.GetEnd().x;
-        } else {
-            road_obj[KEY_Y1.data()] = road.GetEnd().y;
-        }
-        roads_arr.push_back(std::move(road_obj));
-    }
-    return roads_arr;
-}
-
-boost::json::array SerializeBuildings(const model::Map& map) {
-    boost::json::array buildings_arr;
-    for (const auto& building : map.GetBuildings()) {
-        boost::json::object b_obj;
-        const auto& bounds = building.GetBounds();
-        b_obj[KEY_X.data()] = bounds.position.x;
-        b_obj[KEY_Y.data()] = bounds.position.y;
-        b_obj[KEY_W.data()] = bounds.size.width;
-        b_obj[KEY_H.data()] = bounds.size.height;
-        buildings_arr.push_back(std::move(b_obj));
-    }
-    return buildings_arr;
-}
-
-boost::json::array SerializeOffices(const model::Map& map) {
-    boost::json::array offices_arr;
-    for (const auto& office : map.GetOffices()) {
-        boost::json::object o_obj;
-        o_obj[KEY_ID.data()] = *office.GetId();
-        o_obj[KEY_X.data()] = office.GetPosition().x;
-        o_obj[KEY_Y.data()] = office.GetPosition().y;
-        o_obj[KEY_OFFSET_X.data()] = office.GetOffset().dx;
-        o_obj[KEY_OFFSET_Y.data()] = office.GetOffset().dy;
-        offices_arr.push_back(std::move(o_obj));
-    }
-    return offices_arr;
-}
-
-unsigned char HexToChar(char ch) {
-    if (ch >= '0' && ch <= '9') return ch - '0';
-    if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
-    if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
-    return 0;
-}
-
-bool IsHexDigit(char c) {
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-} // namespace
-
-std::string RequestHandler::UrlDecode(std::string_view src) {
-    std::string ret;
-    ret.reserve(src.size());
-    for (size_t i = 0; i < src.size(); ++i) {
-        if (src[i] == '%') {
-            if (i + 2 < src.size() && IsHexDigit(src[i + 1]) && IsHexDigit(src[i + 2])) {
-                auto high = HexToChar(src[i + 1]);
-                auto low = HexToChar(src[i + 2]);
-                ret += static_cast<char>((high << 4) | low);
-                i += 2;
-            } else {
-                ret += src[i];
+                if (high != -1 && low != -1) {
+                    char decodedChar = static_cast<char>((high << 4) | low);
+                    decoded += decodedChar;
+                    i += 2;
+                    continue;
+                }
             }
-        } else if (src[i] == '+') {
-            ret += ' ';
+            decoded += encodedString[i];
+        } else if (encodedString[i] == '+') {
+            decoded += ' ';
         } else {
-            ret += src[i];
+            decoded += encodedString[i];
         }
     }
-    return ret;
+    return decoded;
 }
 
-std::string RequestHandler::GetMimeType(std::string_view ext) {
-    std::string lower_ext;
-    lower_ext.reserve(ext.size());
-    for (char c : ext) {
-        lower_ext += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-
-    if (lower_ext == ".htm" || lower_ext == ".html") return "text/html";
-    if (lower_ext == ".css") return "text/css";
-    if (lower_ext == ".txt") return "text/plain";
-    if (lower_ext == ".js") return "text/javascript";
-    if (lower_ext == ".json") return "application/json";
-    if (lower_ext == ".xml") return "application/xml";
-    if (lower_ext == ".png") return "image/png";
-    if (lower_ext == ".jpg" || lower_ext == ".jpe" || lower_ext == ".jpeg") return "image/jpeg";
-    if (lower_ext == ".gif") return "image/gif";
-    if (lower_ext == ".bmp") return "image/bmp";
-    if (lower_ext == ".ico") return "image/vnd.microsoft.icon";
-    if (lower_ext == ".tiff" || lower_ext == ".tif") return "image/tiff";
-    if (lower_ext == ".svg" || lower_ext == ".svgz") return "image/svg+xml";
-    if (lower_ext == ".mp3") return "audio/mpeg";
-
-    return "application/octet-stream";
-}
-
-bool RequestHandler::IsSubPath(fs::path path, fs::path base) {
+// Защищенный IsSubPath, который работает на GCC 11
+bool IsSubPath(fs::path path, fs::path base) {
     path = fs::weakly_canonical(path);
     base = fs::weakly_canonical(base);
     
-    // Приводим пути к универсальному строковому представлению
     std::string p = path.generic_string();
     std::string b = base.generic_string();
     
-    // Добавляем завершающий слэш к базе (если его нет), 
-    // чтобы директория "static_content_extra" не прошла проверку со "static_content"
     if (!b.empty() && b.back() != '/') {
         b += '/';
     }
     
-    // Если путь совпадает с базовым без слэша, либо начинается с базового + слэш
     return p == base.generic_string() || p.starts_with(b);
 }
 
-std::string RequestHandler::MakeMapsListResponseBody() const {
-    boost::json::array arr;
-    for (const auto& map : game_.GetMaps()) {
-        boost::json::object obj;
-        obj[KEY_ID.data()] = *map.GetId();
-        obj[KEY_NAME.data()] = map.GetName();
-        arr.push_back(std::move(obj));
+const std::unordered_map<std::string, std::string> contentTypeMap = {
+    {".htm", "text/html"},
+    {".html", "text/html"},
+    {".css", "text/css"},
+    {".txt", "text/plain"},
+    {".js", "text/javascript"},
+    {".json", "application/json"},
+    {".xml", "application/xml"},
+    {".png", "image/png"},
+    {".jpg", "image/jpeg"},
+    {".jpe", "image/jpeg"},
+    {".jpeg", "image/jpeg"},
+    {".gif", "image/gif"},
+    {".bmp", "image/bmp"},
+    {".ico", "image/vnd.microsoft.icon"},
+    {".tiff", "image/tiff"},
+    {".tif", "image/tiff"},
+    {".svg", "image/svg+xml"},
+    {".svgz", "image/svg+xml"},
+    {".mp3", "audio/mpeg"}
+};
+
+std::string GetContentType(const fs::path& filePath) {
+    std::string extension = filePath.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return std::tolower(c); });
+
+    auto it = contentTypeMap.find(extension);
+    if (it != contentTypeMap.end()) {
+        return it->second;
     }
-    return boost::json::serialize(arr);
+
+    return "application/octet-stream";
 }
 
-std::string RequestHandler::MakeMapResponseBody(const model::Map& map) const {
-    boost::json::object map_obj;
-    map_obj[KEY_ID.data()] = *map.GetId();
-    map_obj[KEY_NAME.data()] = map.GetName();
-    map_obj[KEY_ROADS.data()] = SerializeRoads(map);
-    map_obj[KEY_BUILDINGS.data()] = SerializeBuildings(map);
-    map_obj[KEY_OFFICES.data()] = SerializeOffices(map);
-    return boost::json::serialize(map_obj);
+void SetIdAndName(boost::json::object& json_map, const model::Map* map) {
+    json_map["id"] = *(map->GetId());
+    json_map["name"] = map->GetName();
+}
+
+void SetRoads(boost::json::object& json_map, const model::Map* map) {
+    boost::json::array roads_json;
+    for (const auto& road : map->GetRoads()) {
+        boost::json::object road_obj;
+        road_obj["x0"] = road.GetStart().x;
+        road_obj["y0"] = road.GetStart().y;
+        if (road.IsHorizontal()) {
+            road_obj["x1"] = road.GetEnd().x;
+        } else {
+            road_obj["y1"] = road.GetEnd().y;
+        }
+        roads_json.push_back(std::move(road_obj));
+    }
+    json_map["roads"] = std::move(roads_json);
+}
+
+void SetBuildings(boost::json::object& json_map, const model::Map* map) {
+    boost::json::array buildings_json;
+    for (const auto& building : map->GetBuildings()) {
+        const auto& bounds = building.GetBounds();
+        boost::json::object building_obj = {
+            {"x", bounds.position.x},
+            {"y", bounds.position.y},
+            {"w", bounds.size.width},
+            {"h", bounds.size.height}
+        };
+        buildings_json.push_back(std::move(building_obj));
+    }
+    json_map["buildings"] = std::move(buildings_json);
+}
+
+void SetOffices(boost::json::object& json_map, const model::Map* map) {
+    boost::json::array offices_json;
+    for (const auto& office : map->GetOffices()) {
+        boost::json::object office_obj = {
+            {"id", *office.GetId()},
+            {"x", office.GetPosition().x},
+            {"y", office.GetPosition().y},
+            {"offsetX", office.GetOffset().dx},
+            {"offsetY", office.GetOffset().dy}
+        };
+        offices_json.push_back(std::move(office_obj));
+    }
+    json_map["offices"] = std::move(offices_json);
 }
 
 }  // namespace http_handler
