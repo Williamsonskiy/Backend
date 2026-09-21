@@ -113,7 +113,13 @@ private:
             return;
         }
 
-        std::string decoded_url = UrlDecode(req.target());
+        // Отрезаем query параметры (всё что после знака вопроса)
+        std::string_view target = req.target();
+        if (auto pos = target.find('?'); pos != std::string_view::npos) {
+            target = target.substr(0, pos);
+        }
+
+        std::string decoded_url = UrlDecode(target);
         if (decoded_url.empty() || decoded_url[0] != '/') {
             send(make_plain_response(http::status::bad_request, "Bad request"sv));
             return;
