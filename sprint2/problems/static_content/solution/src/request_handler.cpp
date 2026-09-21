@@ -83,9 +83,7 @@ std::string RequestHandler::UrlDecode(std::string_view src) {
     ret.reserve(src.size());
     for (size_t i = 0; i < src.size(); ++i) {
         if (src[i] == '%') {
-            if (i + 2 < src.size() && 
-                std::isxdigit(static_cast<unsigned char>(src[i + 1])) && 
-                std::isxdigit(static_cast<unsigned char>(src[i + 2]))) {
+            if (i + 2 < src.size()) {
                 auto high = HexToChar(src[i + 1]);
                 auto low = HexToChar(src[i + 2]);
                 ret += static_cast<char>((high << 4) | low);
@@ -130,31 +128,19 @@ std::string RequestHandler::GetMimeType(std::string_view ext) {
 bool RequestHandler::IsSubPath(fs::path path, fs::path base) {
     path = fs::weakly_canonical(path);
     base = fs::weakly_canonical(base);
-
-    auto b = base.begin();
-    auto p = path.begin();
-
-    // Сравниваем каждый компонент. 
-    while (b != base.end() && p != path.end()) {
-        if (*b != *p) {
-            break;
-        }
-        ++b;
-        ++p;
+    
+    // Приводим пути к универсальному строковому представлению
+    std::string p = path.generic_string();
+    std::string b = base.generic_string();
+    
+    // Добавляем завершающий слэш к базе (если его нет), 
+    // чтобы директория "static_content_extra" не прошла проверку со "static_content"
+    if (!b.empty() && b.back() != '/') {
+        b += '/';
     }
-
-    // Если мы дошли до конца base, то path является его подкаталогом.
-    if (b == base.end()) {
-        return true;
-    }
-
-    // Если base заканчивается на слэш, его последний итератор будет указывать на пустую строку,
-    // которую можно безвредно проигнорировать.
-    if (b->string().empty() && ++b == base.end()) {
-        return true;
-    }
-
-    return false;
+    
+    // Если путь совпадает с базовым без слэша, либо начинается с базового + слэш
+    return p == base.generic_string() || p.starts_with(b);
 }
 
 std::string RequestHandler::MakeMapsListResponseBody() const {
