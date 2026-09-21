@@ -32,7 +32,8 @@ class RequestHandler {
 public:
     explicit RequestHandler(model::Game& game, fs::path static_root)
         : game_{game}
-        , static_root_{fs::weakly_canonical(static_root)} {
+        // Используем canonical для того, чтобы 100% разрешить все симлинки корня сразу
+        , static_root_{fs::canonical(static_root)} {
     }
 
     RequestHandler(const RequestHandler&) = delete;
@@ -113,8 +114,8 @@ private:
             return;
         }
 
-        // Отрезаем query параметры (всё что после знака вопроса)
         std::string_view target = req.target();
+        // Отрезаем query параметры (всё что после знака вопроса)
         if (auto pos = target.find('?'); pos != std::string_view::npos) {
             target = target.substr(0, pos);
         }
@@ -125,8 +126,8 @@ private:
             return;
         }
 
-        // Удаляем ведущий '/', чтобы не перетирался static_root_ при сцепке путей
-        std::string_view rel_url_str = std::string_view{decoded_url}.substr(1);
+        // Удаляем ведущий '/'
+        std::string rel_url_str = decoded_url.substr(1);
         fs::path req_path = static_root_ / rel_url_str;
 
         if (fs::is_directory(req_path)) {
@@ -142,7 +143,7 @@ private:
 
         beast::error_code ec;
         http::file_body::value_type body;
-        body.open(canonical_req_path.string().c_str(), beast::file_mode::read, ec);
+        body.open(canonical_req_path.c_str(), beast::file_mode::read, ec);
 
         if (ec == beast::errc::no_such_file_or_directory || ec == beast::errc::not_a_directory) {
             send(make_plain_response(http::status::not_found, "File not found"sv));
