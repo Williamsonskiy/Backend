@@ -1,91 +1,89 @@
 #include "json_loader.h"
-
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <boost/json.hpp>
+#include <iostream>
 
 namespace json_loader {
 
-namespace {
-
-void LoadRoads(model::Map& map, const boost::json::object& map_obj) {
-    if (!map_obj.contains("roads")) {
-        return;
-    }
-    for (const auto& road_val : map_obj.at("roads").as_array()) {
-        const auto& road_obj = road_val.as_object();
-        model::Coord x0 = road_obj.at("x0").as_int64();
-        model::Coord y0 = road_obj.at("y0").as_int64();
-        if (road_obj.contains("x1")) {
-            model::Coord x1 = road_obj.at("x1").as_int64();
-            map.AddRoad(model::Road(model::Road::HORIZONTAL, {x0, y0}, x1));
-        } else if (road_obj.contains("y1")) {
-            model::Coord y1 = road_obj.at("y1").as_int64();
-            map.AddRoad(model::Road(model::Road::VERTICAL, {x0, y0}, y1));
+void AddRoads(const boost::json::value& map_json, model::Map& map) {
+    for (const auto& road_json : map_json.at("roads").as_array()) {
+        if (road_json.as_object().contains("x1")) {
+            map.AddRoad(model::Road(
+                model::Road::HORIZONTAL,
+                {
+                    model::Coord(road_json.at("x0").as_int64()), model::Coord(road_json.at("y0").as_int64())},
+                    model::Coord(road_json.at("x1").as_int64())
+                ));
+        } else if (road_json.as_object().contains("y1")) {
+            map.AddRoad(model::Road(
+                model::Road::VERTICAL,
+                {
+                    model::Coord(road_json.at("x0").as_int64()), model::Coord(road_json.at("y0").as_int64())},
+                    model::Coord(road_json.at("y1").as_int64())
+                ));
         }
     }
 }
 
-void LoadBuildings(model::Map& map, const boost::json::object& map_obj) {
-    if (!map_obj.contains("buildings")) {
-        return;
-    }
-    for (const auto& building_val : map_obj.at("buildings").as_array()) {
-        const auto& building_obj = building_val.as_object();
-        model::Coord x = building_obj.at("x").as_int64();
-        model::Coord y = building_obj.at("y").as_int64();
-        model::Dimension w = building_obj.at("w").as_int64();
-        model::Dimension h = building_obj.at("h").as_int64();
-        map.AddBuilding(model::Building({ {x, y}, {w, h} }));
+void AddBuildings(const boost::json::value& map_json, model::Map& map) {
+    for (const auto& building_json : map_json.at("buildings").as_array()) {
+        model::Point position{
+            model::Coord(building_json.at("x").as_int64()),
+            model::Coord(building_json.at("y").as_int64())
+        };
+
+        model::Size s{
+            model::Dimension(building_json.at("w").as_int64()),
+            model::Dimension(building_json.at("h").as_int64())
+        };
+
+        model::Rectangle bounds{position, s};
+        map.AddBuilding(model::Building(bounds));
     }
 }
 
-void LoadOffices(model::Map& map, const boost::json::object& map_obj) {
-    if (!map_obj.contains("offices")) {
-        return;
-    }
-    for (const auto& office_val : map_obj.at("offices").as_array()) {
-        const auto& office_obj = office_val.as_object();
-        std::string office_id = std::string(office_obj.at("id").as_string());
-        model::Coord x = office_obj.at("x").as_int64();
-        model::Coord y = office_obj.at("y").as_int64();
-        model::Dimension offset_x = office_obj.at("offsetX").as_int64();
-        model::Dimension offset_y = office_obj.at("offsetY").as_int64();
-        map.AddOffice(model::Office(model::Office::Id{std::move(office_id)}, {x, y}, {offset_x, offset_y}));
+void AddOffices(const boost::json::value& map_json, model::Map& map) {
+    for (const auto& office_json : map_json.at("offices").as_array()) {
+        map.AddOffice(model::Office(
+            model::Office::Id(std::string(office_json.at("id").as_string())),
+            {model::Coord(office_json.at("x").as_int64()), model::Coord(office_json.at("y").as_int64())},  // position
+            {model::Dimension(office_json.at("offsetX").as_int64()), model::Dimension(office_json.at("offsetY").as_int64())}  // offset
+        ));
     }
 }
-
-} // namespace
 
 model::Game LoadGame(const std::filesystem::path& json_path) {
+
     std::ifstream file(json_path);
     if (!file.is_open()) {
-        throw std::runtime_error("Cannot open file: " + json_path.string());
+        throw std::runtime_error("Не удалось открыть файл: " + json_path.string());
     }
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
+    std::stringstream ss;
+    ss << file.rdbuf();
+    std::string json_string = ss.str();
+    file.close();
 
-    boost::json::value const jv = boost::json::parse(buffer.str());
-    const auto& doc = jv.as_object();
+    boost::json::value json_value;
+    try {
+        json_value = boost::json::parse(json_string);
+    } catch (const boost::system::system_error& e) {
+        std::cerr << "JSON parsing error (system error): " << e.what() << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Standard exception during JSON parsing: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception during JSON parsing" << std::endl;
+    }
 
     model::Game game;
 
-    if (!doc.contains("maps")) {
-        return game;
-    }
+    for (const auto& map_json : json_value.as_object().at("maps").as_array()) {
+        model::Map map(
+            model::Map::Id(std::string(map_json.at("id").as_string())),
+            std::string(map_json.at("name").as_string())
+        );
 
-    for (const auto& map_val : doc.at("maps").as_array()) {
-        const auto& map_obj = map_val.as_object();
-        std::string id = std::string(map_obj.at("id").as_string());
-        std::string name = std::string(map_obj.at("name").as_string());
-
-        model::Map map(model::Map::Id{std::move(id)}, std::move(name));
-
-        LoadRoads(map, map_obj);
-        LoadBuildings(map, map_obj);
-        LoadOffices(map, map_obj);
+        AddRoads(map_json, map);
+        AddBuildings(map_json, map);
+        AddOffices(map_json, map);
 
         game.AddMap(std::move(map));
     }
@@ -93,4 +91,4 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
     return game;
 }
 
-}
+}  // namespace json_loader
