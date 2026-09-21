@@ -188,8 +188,8 @@ private:
     using MapIdHasher = util::TaggedHasher<Map::Id>;
     using MapIdToIndex = std::unordered_map<Map::Id, size_t, MapIdHasher>;
 
-    Maps maps_;
+    std::vector<Map> maps_;
     MapIdToIndex map_id_to_index_;
 };
 
-}
+}  // namespace model
