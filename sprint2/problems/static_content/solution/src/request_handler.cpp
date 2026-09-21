@@ -2,7 +2,6 @@
 
 #include <string>
 #include <cctype>
-#include <algorithm>
 
 namespace http_handler {
 
@@ -38,11 +37,7 @@ std::string urlDecode(const std::string& encodedString) {
 using namespace std::literals;
 namespace fs = std::filesystem;
 
-
 bool IsSubPath(fs::path path, fs::path base) {
-    //path = fs::weakly_canonical(path);
-    //base = fs::weakly_canonical(base);
-
     for (auto b = base.begin(), p = path.begin(); b != base.end(); ++b, ++p) {
         if (p == path.end() || *p != *b) {
             return false;
@@ -76,7 +71,7 @@ const std::unordered_map<std::string, std::string> contentTypeMap = {
 
 std::string getContentType(const fs::path& filePath) {
     std::string extension = filePath.extension().string();
-    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c){ return std::tolower(c); });
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
     auto it = contentTypeMap.find(extension);
     if (it != contentTypeMap.end()) {
