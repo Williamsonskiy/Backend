@@ -119,7 +119,7 @@ private:
             return;
         }
 
-        // Убираем ведущий слэш '/', чтобы путь считался относительным и не сбрасывал static_root_
+        // Удаляем ведущий '/', чтобы не перетирался static_root_ при сцепке путей
         std::string_view rel_url_str = std::string_view{decoded_url}.substr(1);
         fs::path req_path = static_root_ / rel_url_str;
 
