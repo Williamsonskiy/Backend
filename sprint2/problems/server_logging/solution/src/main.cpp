@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
         });
 
         // 4. Создаем обработчик запросов с логгированием
-        RequestHandler handler{game, argv[2]};
+        http_handler::RequestHandler handler{game, argv[2]};
         LoggingRequestHandler logging_handler{std::move(handler)};
 
         // 5. Запускаем HTTP-сервер
