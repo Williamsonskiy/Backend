@@ -1,59 +1,4 @@
-#pragma once
-#include "app.h"
-#include <boost/beast/http.hpp>
-#include <boost/json.hpp>
-#include <string_view>
-
-namespace http_handler {
-
-namespace http = boost::beast::http;
-namespace json = boost::json;
-
-class ApiHandler {
-public:
-    explicit ApiHandler(app::App& app) : app_(app) {}
-
-    template <typename Body, typename Allocator, typename Send>
-    void HandleRequest(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
-        std::string_view target = req.target();
-
-        if (target == "/api/v1/game/join") {
-            return HandleJoinGame(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/game/players") {
-            return HandleGetPlayers(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/maps") {
-            return HandleGetMaps(std::move(req), std::forward<Send>(send));
-        } else if (target.starts_with("/api/v1/maps/")) {
-            return HandleGetMap(std::move(req), std::forward<Send>(send));
-        }
-        
-        return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Bad request", req));
-    }
-
-private:
-    app::App& app_;
-
-    template <typename Request>
-    auto MakeErrorResponse(http::status status, std::string_view code, std::string_view message, const Request& req, std::string_view allow_methods = "") {
-        json::object obj = {{"code", code}, {"message", message}};
-        auto res = MakeJsonResponse(status, json::serialize(obj), req);
-        if (!allow_methods.empty()) {
-            res.set(http::field::allow, allow_methods);
-        }
-        return res;
-    }
-
-    template <typename Request>
-    http::response<http::string_body> MakeJsonResponse(http::status status, std::string_view body, const Request& req) {
-        http::response<http::string_body> res(status, req.version());
-        res.set(http::field::content_type, "application/json");
-        res.set(http::field::cache_control, "no-cache");
-        res.body() = std::string(body);
-        res.prepare_payload();
-        return res;
-    }
-
-    template <typename Request, typename Send>
+template <typename Request, typename Send>
     void HandleJoinGame(Request&& req, Send&& send) {
         if (req.method() != http::verb::post) {
             return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
@@ -63,8 +8,15 @@ private:
         std::string map_id_str;
         try {
             json::value jv = json::parse(req.body());
-            user_name = jv.as_object().at("userName").as_string().c_str();
-            map_id_str = jv.as_object().at("mapId").as_string().c_str();
+            if (!jv.is_object()) {
+                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Join game request parse error", req));
+            }
+            const auto& obj = jv.as_object();
+            if (!obj.contains("userName") || !obj.contains("mapId")) {
+                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Join game request parse error", req));
+            }
+            user_name = json::value_to<std::string>(obj.at("userName"));
+            map_id_str = json::value_to<std::string>(obj.at("mapId"));
         } catch (...) {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Join game request parse error", req));
         }
@@ -79,7 +31,10 @@ private:
         }
 
         auto [token, player_id] = app_.JoinGame(user_name, map_id);
-        json::object response_obj = {{"authToken", token}, {"playerId", player_id}};
+        json::object response_obj = {
+            {"authToken", token},
+            {"playerId", *player_id}
+        };
 
         send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
     }
@@ -108,82 +63,13 @@ private:
 
         json::object players_obj;
         for (const auto& dog : player->GetSession()->GetDogs()) {
-            players_obj[std::to_string(dog.GetId())] = {{"name", dog.GetName()}};
+            players_obj[std::to_string(*dog.GetId())] = json::object{{"name", dog.GetName()}};
         }
 
-        send(MakeJsonResponse(http::status::ok, json::serialize(players_obj), req));
+        auto res = MakeJsonResponse(http::status::ok, json::serialize(players_obj), req);
+        if (req.method() == http::verb::head) {
+            res.body().clear();
+            res.content_length(json::serialize(players_obj).size());
+        }
+        send(std::move(res));
     }
-
-    template <typename Request, typename Send>
-    void HandleGetMaps(Request&& req, Send&& send) {
-        if (req.method() != http::verb::get && req.method() != http::verb::head) {
-            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
-        }
-        
-        json::array maps_array;
-        for (const auto& map : app_.GetGame().GetMaps()) {
-            json::object map_json;
-            map_json["id"] = *map.GetId();
-            map_json["name"] = map.GetName();
-            maps_array.push_back(map_json);
-        }
-        send(MakeJsonResponse(http::status::ok, json::serialize(maps_array), req));
-    }
-
-    template <typename Request, typename Send>
-    void HandleGetMap(Request&& req, Send&& send) {
-        if (req.method() != http::verb::get && req.method() != http::verb::head) {
-            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
-        }
-        
-        std::string map_id = std::string(req.target().substr(13));
-        const auto* map = app_.GetGame().FindMap(model::Map::Id{map_id});
-        if (!map) {
-            return send(MakeErrorResponse(http::status::not_found, "mapNotFound", "Map not found", req));
-        }
-
-        json::object map_json;
-        map_json["id"] = *map->GetId();
-        map_json["name"] = map->GetName();
-        
-        map_json["roads"] = json::array{};
-        for (const auto& road : map->GetRoads()) {
-            json::object road_json;
-            if (road.IsHorizontal()) {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["x1"] = road.GetEnd().x;
-            } else {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["y1"] = road.GetEnd().y;
-            }
-            map_json["roads"].as_array().push_back(road_json);
-        }
-
-        map_json["buildings"] = json::array{};
-        for (const auto& building : map->GetBuildings()) {
-            map_json["buildings"].as_array().push_back({
-                {"x", building.GetBounds().position.x},
-                {"y", building.GetBounds().position.y},
-                {"w", building.GetBounds().size.width},
-                {"h", building.GetBounds().size.height}
-            });
-        }
-
-        map_json["offices"] = json::array{};
-        for (const auto& office : map->GetOffices()) {
-            map_json["offices"].as_array().push_back({
-                {"id", *office.GetId()},
-                {"x", office.GetPosition().x},
-                {"y", office.GetPosition().y},
-                {"offsetX", office.GetOffset().dx},
-                {"offsetY", office.GetOffset().dy}
-            });
-        }
-
-        send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
-    }
-};
-
-} // namespace http_handler
