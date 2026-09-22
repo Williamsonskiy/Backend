@@ -1,6 +1,5 @@
 #pragma once
 #include "sdk.h"
-#define BOOST_BEAST_USE_STD_STRING_VIEW
 
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/strand.hpp>
