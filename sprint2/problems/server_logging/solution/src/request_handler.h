@@ -33,7 +33,10 @@ public:
         , static_path_{fs::weakly_canonical(std::move(static_path))} {
     }
 
-    RequestHandler(const RequestHandler&) = delete;
+    // РАЗРЕШАЕМ копирование, так как сервер создает копию обработчика для каждой сессии
+    RequestHandler(const RequestHandler&) = default;
+    
+    // Запрет копирующего присваивания, так как класс содержит ссылочное поле
     RequestHandler& operator=(const RequestHandler&) = delete;
 
     template <typename Body, typename Allocator, typename Send>
@@ -121,6 +124,10 @@ private:
 template <typename SomeRequestHandler>
 class LoggingRequestHandler {
 public:
+    // Разрешаем копирование обертки
+    LoggingRequestHandler(const LoggingRequestHandler&) = default;
+    LoggingRequestHandler(LoggingRequestHandler&&) = default;
+
     explicit LoggingRequestHandler(SomeRequestHandler&& decorated)
         : decorated_(std::move(decorated)) {}
 
