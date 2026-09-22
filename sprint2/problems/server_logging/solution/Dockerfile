@@ -1,21 +1,26 @@
-FROM gcc:11.3
+FROM ubuntu:22.04
 
-RUN apt-get update && \
-    apt-get install -y \
-      python3-pip \
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && \
+    apt install -y \
+      build-essential \
+      g++ \
       cmake \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN pip3 install conan==1.59.0
+      python3-pip \
+    && \
+    pip3 install conan==1.*
 
 COPY conanfile.txt /app/
-WORKDIR /app
-
-RUN conan install . --build=missing -s compiler.libcxx=libstdc++11
+RUN mkdir /app/build && cd /app/build && \
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11
 
 COPY . /app
+RUN cd /app/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    cmake --build .
 
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build
+RUN useradd -r -u 888 appuser
+USER appuser
 
 ENTRYPOINT ["/app/build/bin/game_server", "/app/data/config.json", "/app/static"]
