@@ -11,7 +11,6 @@ namespace app {
 
 using Token = std::string;
 
-// Класс для генерации токенов
 class PlayerTokens {
 public:
     Token GenerateToken() {
