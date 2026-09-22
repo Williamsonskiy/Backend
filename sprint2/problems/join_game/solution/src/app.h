@@ -15,6 +15,7 @@ class PlayerTokens {
 public:
     Token GenerateToken() {
         std::stringstream ss;
+        // Гарантируем ровно 32 символа в hex (128 бит)
         ss << std::hex << std::setfill('0')
            << std::setw(16) << generator1_()
            << std::setw(16) << generator2_();
@@ -28,16 +29,17 @@ private:
 
 class Player {
 public:
-    Player(model::GameSession* session, model::Dog* dog)
-        : session_(session), dog_(dog) {}
+    Player(model::GameSession* session, model::Dog::Id dog_id, std::string dog_name)
+        : session_(session), dog_id_(dog_id), dog_name_(std::move(dog_name)) {}
 
-    const model::Dog::Id& GetId() const { return dog_->GetId(); }
-    const std::string& GetName() const { return dog_->GetName(); }
+    const model::Dog::Id& GetId() const { return dog_id_; }
+    const std::string& GetName() const { return dog_name_; }
     model::GameSession* GetSession() const { return session_; }
 
 private:
     model::GameSession* session_;
-    model::Dog* dog_;
+    model::Dog::Id dog_id_;
+    std::string dog_name_;
 };
 
 class App {
@@ -51,9 +53,9 @@ public:
         }
         
         auto* dog = session->AddDog(player_name);
-        auto player = std::make_unique<Player>(session, dog);
-        model::Dog::Id player_id = player->GetId();
+        model::Dog::Id player_id = dog->GetId();
         
+        auto player = std::make_unique<Player>(session, player_id, player_name);
         Token token = tokens_.GenerateToken();
         player_tokens_[token] = std::move(player);
         
