@@ -76,6 +76,18 @@ inline void LogServerExited(int code, const std::optional<std::string>& exceptio
         << "server exited";
 }
 
+// Лог сетевой ошибки (ЭТОГО НЕ ХВАТАЛО)
+inline void LogNetworkError(int code, const std::string& text, std::string_view where) {
+    json::object data;
+    data["code"] = code;
+    data["text"] = text;
+    data["where"] = std::string(where);
+
+    BOOST_LOG_TRIVIAL(info) 
+        << logging::add_value(additional_data, data) 
+        << "error";
+}
+
 // Лог входящего запроса
 inline void LogRequest(std::string_view ip, std::string_view URI, std::string_view method) {
     json::object data;
