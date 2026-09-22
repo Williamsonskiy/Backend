@@ -9,7 +9,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-find_package(Boost REQUIRED COMPONENTS system thread json)
+find_package(Boost REQUIRED COMPONENTS system thread json log log_setup)
 
 add_executable(game_server
     src/main.cpp
@@ -25,4 +25,6 @@ target_link_libraries(game_server PRIVATE
     Boost::system
     Boost::thread
     Boost::json
+    Boost::log
+    Boost::log_setup
 )
