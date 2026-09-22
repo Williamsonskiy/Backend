@@ -48,7 +48,7 @@ private:
         http::response<http::string_body> res(status, req.version());
         res.set(http::field::content_type, "application/json");
         res.set(http::field::cache_control, "no-cache");
-        res.body() = body;
+        res.body() = std::string(body);
         res.prepare_payload();
         return res;
     }
@@ -79,11 +79,7 @@ private:
         }
 
         auto [token, player_id] = app_.JoinGame(user_name, map_id);
-
-        json::object response_obj = {
-            {"authToken", token},
-            {"playerId", player_id}
-        };
+        json::object response_obj = {{"authToken", token}, {"playerId", player_id}};
 
         send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
     }
@@ -120,13 +116,73 @@ private:
 
     template <typename Request, typename Send>
     void HandleGetMaps(Request&& req, Send&& send) {
-        // [ВСТАВЬТЕ СЮДА] Вашу логику выдачи списка карт из 1 спринта.
-        // Пример (псевдокод): send(MakeJsonResponse(http::status::ok, json_loader::GetMapsJson(...), req));
+        if (req.method() != http::verb::get && req.method() != http::verb::head) {
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
+        }
+        
+        json::array maps_array;
+        for (const auto& map : app_.GetGame().GetMaps()) {
+            json::object map_json;
+            map_json["id"] = *map.GetId();
+            map_json["name"] = map.GetName();
+            maps_array.push_back(map_json);
+        }
+        send(MakeJsonResponse(http::status::ok, json::serialize(maps_array), req));
     }
 
     template <typename Request, typename Send>
     void HandleGetMap(Request&& req, Send&& send) {
-        // [ВСТАВЬТЕ СЮДА] Вашу логику поиска и выдачи конкретной карты из 1 спринта.
+        if (req.method() != http::verb::get && req.method() != http::verb::head) {
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
+        }
+        
+        std::string map_id = std::string(req.target().substr(13));
+        const auto* map = app_.GetGame().FindMap(model::Map::Id{map_id});
+        if (!map) {
+            return send(MakeErrorResponse(http::status::not_found, "mapNotFound", "Map not found", req));
+        }
+
+        json::object map_json;
+        map_json["id"] = *map->GetId();
+        map_json["name"] = map->GetName();
+        
+        map_json["roads"] = json::array{};
+        for (const auto& road : map->GetRoads()) {
+            json::object road_json;
+            if (road.IsHorizontal()) {
+                road_json["x0"] = road.GetStart().x;
+                road_json["y0"] = road.GetStart().y;
+                road_json["x1"] = road.GetEnd().x;
+            } else {
+                road_json["x0"] = road.GetStart().x;
+                road_json["y0"] = road.GetStart().y;
+                road_json["y1"] = road.GetEnd().y;
+            }
+            map_json["roads"].as_array().push_back(road_json);
+        }
+
+        map_json["buildings"] = json::array{};
+        for (const auto& building : map->GetBuildings()) {
+            map_json["buildings"].as_array().push_back({
+                {"x", building.GetBounds().position.x},
+                {"y", building.GetBounds().position.y},
+                {"w", building.GetBounds().size.width},
+                {"h", building.GetBounds().size.height}
+            });
+        }
+
+        map_json["offices"] = json::array{};
+        for (const auto& office : map->GetOffices()) {
+            map_json["offices"].as_array().push_back({
+                {"id", *office.GetId()},
+                {"x", office.GetPosition().x},
+                {"y", office.GetPosition().y},
+                {"offsetX", office.GetOffset().dx},
+                {"offsetY", office.GetOffset().dy}
+            });
+        }
+
+        send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
     }
 };
 
