@@ -1,69 +1,74 @@
 #include "sdk.h"
-
-#include <boost/asio/io_context.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/signal_set.hpp>
-#include <filesystem>
+#include <boost/system/error_code.hpp>
+#include <boost/asio/io_context.hpp>
 #include <iostream>
 #include <thread>
-#include <vector>
 
 #include "json_loader.h"
 #include "request_handler.h"
 
 using namespace std::literals;
-namespace fs = std::filesystem;
+namespace net = boost::asio;
+namespace sys = boost::system;
 
 namespace {
 
+// Запускает функцию fn на n потоках, включая текущий
 template <typename Fn>
 void RunWorkers(unsigned n, const Fn& fn) {
     n = std::max(1u, n);
-    std::vector<std::thread> workers;
+    std::vector<std::jthread> workers;
     workers.reserve(n - 1);
-    for (unsigned i = 0; i < n - 1; ++i) {
+    // Запускаем n-1 рабочих потоков, выполняющих функцию fn
+    while (--n) {
         workers.emplace_back(fn);
     }
     fn();
-    for (auto& w : workers) {
-        if (w.joinable()) {
-            w.join();
-        }
-    }
 }
 
-}
+}  // namespace
 
 int main(int argc, const char* argv[]) {
     if (argc != 3) {
-        std::cerr << "Usage: game_server <game-config-json> <static-files-path>"sv << std::endl;
+        std::cerr << "Usage: game_server <game-config-json> <folder_name>"sv << std::endl;
         return EXIT_FAILURE;
     }
     try {
+        // 1. Загружаем карту из файла и строим модель игры
         model::Game game = json_loader::LoadGame(argv[1]);
-        fs::path static_root{argv[2]};
+        std::string folder = argv[2];
 
-        const unsigned num_threads = std::max(1u, std::thread::hardware_concurrency());
-        boost::asio::io_context ioc(num_threads);
+        // 2. Инициализируем io_context
+        const unsigned num_threads = std::thread::hardware_concurrency();
+        net::io_context ioc(num_threads);
 
-        boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
-        signals.async_wait([&ioc](const boost::system::error_code& ec, [[maybe_unused]] int signal_number) {
+        net::strand<net::executor> strand(ioc.get_executor()); // strand для handler request
+
+        // 3. Добавляем асинхронный обработчик сигналов SIGINT и SIGTERM
+        net::signal_set signals(ioc, SIGINT, SIGTERM);
+        signals.async_wait([&ioc](const sys::error_code& ec, [[maybe_unused]] int signal_number) {
             if (!ec) {
                 ioc.stop();
             }
         });
 
-        const auto address = boost::asio::ip::make_address("0.0.0.0");
-        constexpr boost::asio::ip::port_type port = 8080;
+        // 4. Создаём обработчик HTTP-запросов и связываем его с моделью игры
+        auto handler = std::make_shared<http_handler::RequestHandler>(game, folder, strand);
 
-        http_handler::RequestHandler handler{game, static_root};
+        // 5. Запустить обработчик HTTP-запросов
+        const auto address = net::ip::make_address("0.0.0.0");
+        constexpr net::ip::port_type port = 8080;
 
-        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& sender) {
-            handler(std::forward<decltype(req)>(req), std::forward<decltype(sender)>(sender));
+        http_server::ServeHttp(ioc, {address, port}, [&handler](auto&& req, auto&& send) {
+            (*handler)(std::forward<decltype(req)>(req), std::forward<decltype(send)>(send));
         });
 
         std::cout << "Server has started..."sv << std::endl;
 
-        RunWorkers(num_threads, [&ioc] {
+        // 6. Запускаем обработку асинхронных операций
+        RunWorkers(std::max(1u, num_threads), [&ioc] {
             ioc.run();
         });
     } catch (const std::exception& ex) {
