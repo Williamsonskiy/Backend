@@ -89,7 +89,7 @@ private:
         auto [token, player_id] = app_.JoinGame(user_name, map_id);
         json::object response_obj = {
             {"authToken", token},
-            {"playerId", *player_id}
+            {"playerId", player_id}
         };
 
         send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
@@ -119,7 +119,7 @@ private:
 
         json::object players_obj;
         for (const auto& dog : player->GetSession()->GetDogs()) {
-            players_obj[std::to_string(*dog.GetId())] = json::object{{"name", dog.GetName()}};
+            players_obj[std::to_string(dog.GetId())] = json::object{{"name", dog.GetName()}};
         }
 
         auto res = MakeJsonResponse(http::status::ok, json::serialize(players_obj), req);
