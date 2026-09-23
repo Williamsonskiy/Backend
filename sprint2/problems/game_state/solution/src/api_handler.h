@@ -22,6 +22,8 @@ public:
             return HandleJoinGame(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/players") {
             return HandleGetPlayers(std::move(req), std::forward<Send>(send));
+        } else if (target == "/api/v1/game/state") {
+            return HandleGetGameState(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/maps") {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
         } else if (target.starts_with("/api/v1/maps/")) {
@@ -126,6 +128,48 @@ private:
         if (req.method() == http::verb::head) {
             res.body().clear();
             res.content_length(json::serialize(players_obj).size());
+        }
+        send(std::move(res));
+    }
+
+    template <typename Request, typename Send>
+    void HandleGetGameState(Request&& req, Send&& send) {
+        if (req.method() != http::verb::get && req.method() != http::verb::head) {
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
+        }
+
+        auto auth_it = req.find(http::field::authorization);
+        if (auth_it == req.end()) {
+            return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
+        }
+
+        std::string_view auth_header = auth_it->value();
+        if (!auth_header.starts_with("Bearer ") || auth_header.size() != 39) {
+            return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
+        }
+
+        std::string token_str(auth_header.substr(7));
+        app::Player* player = app_.GetPlayerByToken(token_str);
+        if (!player) {
+            return send(MakeErrorResponse(http::status::unauthorized, "unknownToken", "Player token has not been found", req));
+        }
+
+        json::object players_obj;
+        for (const auto& dog : player->GetSession()->GetDogs()) {
+            json::object dog_obj;
+            dog_obj["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
+            dog_obj["speed"] = json::array{dog.GetSpeed().ux, dog.GetSpeed().uy};
+            dog_obj["dir"] = std::string(model::DirectionToString(dog.GetDirection()));
+            players_obj[std::to_string(dog.GetId())] = dog_obj;
+        }
+
+        json::object root;
+        root["players"] = players_obj;
+
+        auto res = MakeJsonResponse(http::status::ok, json::serialize(root), req);
+        if (req.method() == http::verb::head) {
+            res.body().clear();
+            res.content_length(json::serialize(root).size());
         }
         send(std::move(res));
     }
