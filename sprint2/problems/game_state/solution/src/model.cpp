@@ -1,8 +1,49 @@
 #include "model.h"
 #include <stdexcept>
+#include <random>
+#include <algorithm>
 
 namespace model {
 using namespace std::literals;
+
+namespace {
+    double GetRandomDouble(double min, double max) {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        std::uniform_real_distribution<double> dist(min, max);
+        return dist(gen);
+    }
+    size_t GetRandomIndex(size_t max) {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        std::uniform_int_distribution<size_t> dist(0, max);
+        return dist(gen);
+    }
+}
+
+Point2D GameSession::GetRandomRoadPosition() const {
+    const auto& roads = map_->GetRoads();
+    if (roads.empty()) {
+        return {0.0, 0.0};
+    }
+    
+    const auto& road = roads[GetRandomIndex(roads.size() - 1)];
+    
+    if (road.IsHorizontal()) {
+        double start_x = std::min(road.GetStart().x, road.GetEnd().x);
+        double end_x = std::max(road.GetStart().x, road.GetEnd().x);
+        return {GetRandomDouble(start_x, end_x), static_cast<double>(road.GetStart().y)};
+    } else {
+        double start_y = std::min(road.GetStart().y, road.GetEnd().y);
+        double end_y = std::max(road.GetStart().y, road.GetEnd().y);
+        return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
+    }
+}
+
+Dog* GameSession::AddDog(const std::string& name) {
+    dogs_.emplace_back(dog_id_counter_++, name, GetRandomRoadPosition());
+    return &dogs_.back();
+}
 
 void Map::AddOffice(Office office) {
     if (warehouse_id_to_index_.contains(office.GetId())) {
