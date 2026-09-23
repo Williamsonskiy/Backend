@@ -229,6 +229,7 @@ private:
             if (!jv.is_object() || !jv.as_object().contains("timeDelta")) {
                 return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Failed to parse tick request JSON", req));
             }
+            
             const auto& val = jv.as_object().at("timeDelta");
             if (val.is_int64()) {
                 time_delta = static_cast<int>(val.as_int64());
