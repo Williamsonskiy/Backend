@@ -43,15 +43,19 @@ struct Args {
 std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     namespace po = boost::program_options;
     
+    Args args;
+    std::vector<std::string> config_files;
+    std::vector<std::string> www_roots;
+    std::vector<int> tick_periods;
+
     po::options_description visible_desc("Allowed options");
     visible_desc.add_options()
         ("help,h", "produce help message")
-        ("tick-period,t", po::value<std::vector<int>>()->value_name("milliseconds"), "set tick period")
-        ("config-file,c", po::value<std::vector<std::string>>()->value_name("file"), "set config file path")
-        ("www-root,w", po::value<std::vector<std::string>>()->value_name("dir"), "set static files root")
-        ("randomize-spawn-points", "spawn dogs at random positions");
+        ("tick-period,t", po::value(&tick_periods)->value_name("milliseconds"), "set tick period")
+        ("config-file,c", po::value(&config_files)->value_name("file"), "set config file path")
+        ("www-root,w", po::value(&www_roots)->value_name("dir"), "set static files root")
+        ("randomize-spawn-points", po::bool_switch(&args.randomize_spawn_points), "spawn dogs at random positions");
 
-    // Скрытая опция для перехвата любых лишних позиционных аргументов из старого ENTRYPOINT
     po::options_description hidden_desc("Hidden options");
     hidden_desc.add_options()
         ("positional", po::value<std::vector<std::string>>());
@@ -60,13 +64,13 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     all_desc.add(visible_desc).add(hidden_desc);
 
     po::positional_options_description positional_desc;
-    positional_desc.add("positional", -1); // Все аргументы без флагов летят сюда
+    positional_desc.add("positional", -1);
 
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv)
                   .options(all_desc)
                   .positional(positional_desc)
-                  .allow_unregistered()
+                  .allow_unregistered() // Игнорируем любые неопознанные флаги от тестов
                   .run(), vm);
     po::notify(vm);
 
@@ -75,25 +79,18 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         return std::nullopt;
     }
 
-    Args args;
-
-    // Пытаемся достать пути либо из флагов -c и -w, либо из позиционных аргументов
-    if (vm.contains("config-file")) {
-        args.config_file = vm["config-file"].as<std::vector<std::string>>().back();
+    if (!config_files.empty()) {
+        args.config_file = config_files.back();
     } else if (vm.contains("positional")) {
         const auto& pos_args = vm["positional"].as<std::vector<std::string>>();
-        if (pos_args.size() > 0) {
-            args.config_file = pos_args[0];
-        }
+        if (pos_args.size() > 0) args.config_file = pos_args[0];
     }
 
-    if (vm.contains("www-root")) {
-        args.www_root = vm["www-root"].as<std::vector<std::string>>().back();
+    if (!www_roots.empty()) {
+        args.www_root = www_roots.back();
     } else if (vm.contains("positional")) {
         const auto& pos_args = vm["positional"].as<std::vector<std::string>>();
-        if (pos_args.size() > 1) {
-            args.www_root = pos_args[1];
-        }
+        if (pos_args.size() > 1) args.www_root = pos_args[1];
     }
 
     if (args.config_file.empty()) {
@@ -103,12 +100,8 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         throw std::runtime_error("Static files root is required");
     }
 
-    if (vm.contains("tick-period")) {
-        args.tick_period = vm["tick-period"].as<std::vector<int>>().back();
-    }
-
-    if (vm.contains("randomize-spawn-points")) {
-        args.randomize_spawn_points = true;
+    if (!tick_periods.empty()) {
+        args.tick_period = tick_periods.back();
     }
 
     return args;
