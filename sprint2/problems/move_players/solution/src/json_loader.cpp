@@ -44,8 +44,8 @@ void AddOffices(const boost::json::value& map_json, model::Map& map) {
     for (const auto& office_json : map_json.at("offices").as_array()) {
         map.AddOffice(model::Office(
             model::Office::Id(std::string(office_json.at("id").as_string())),
-            {model::Coord(office_json.at("x").as_int64()), model::Coord(office_json.at("y").as_int64())},  // position
-            {model::Dimension(office_json.at("offsetX").as_int64()), model::Dimension(office_json.at("offsetY").as_int64())}  // offset
+            {model::Coord(office_json.at("x").as_int64()), model::Coord(office_json.at("y").as_int64())}, 
+            {model::Dimension(office_json.at("offsetX").as_int64()), model::Dimension(office_json.at("offsetY").as_int64())}
         ));
     }
 }
@@ -65,20 +65,29 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
     boost::json::value json_value;
     try {
         json_value = boost::json::parse(json_string);
-    } catch (const boost::system::system_error& e) {
-        std::cerr << "JSON parsing error (system error): " << e.what() << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "Standard exception during JSON parsing: " << e.what() << std::endl;
     } catch (...) {
         std::cerr << "Unknown exception during JSON parsing" << std::endl;
+    }
+
+    double default_dog_speed = 1.0;
+    if (json_value.as_object().contains("defaultDogSpeed")) {
+        const auto& v = json_value.as_object().at("defaultDogSpeed");
+        default_dog_speed = v.is_double() ? v.as_double() : static_cast<double>(v.as_int64());
     }
 
     model::Game game;
 
     for (const auto& map_json : json_value.as_object().at("maps").as_array()) {
+        double dog_speed = default_dog_speed;
+        if (map_json.as_object().contains("dogSpeed")) {
+            const auto& v = map_json.as_object().at("dogSpeed");
+            dog_speed = v.is_double() ? v.as_double() : static_cast<double>(v.as_int64());
+        }
+
         model::Map map(
             model::Map::Id(std::string(map_json.at("id").as_string())),
-            std::string(map_json.at("name").as_string())
+            std::string(map_json.at("name").as_string()),
+            dog_speed
         );
 
         AddRoads(map_json, map);
