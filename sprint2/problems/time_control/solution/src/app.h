@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 namespace app {
 
@@ -66,6 +67,10 @@ public:
             return it->second.get();
         }
         return nullptr;
+    }
+
+    void Tick(std::chrono::milliseconds delta) {
+        game_.Tick(delta);
     }
 
     const model::Game& GetGame() const { return game_; }
