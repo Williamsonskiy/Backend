@@ -2,13 +2,16 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/program_options.hpp>
 #include <iostream>
 #include <thread>
+#include <optional>
 #include "json_loader.h"
 #include "request_handler.h"
 #include "app.h"
 #include "logger.h"
 #include "http_server.h"
+#include "ticker.h"
 
 namespace net = boost::asio;
 namespace sys = boost::system;
@@ -29,20 +32,75 @@ void RunWorkers(unsigned int count, const Fn& fn) {
     }
 }
 
+struct Args {
+    std::string config_file;
+    std::string www_root;
+    std::optional<int> tick_period;
+    bool randomize_spawn_points = false;
+};
+
+std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
+    namespace po = boost::program_options;
+    po::options_description desc("Allowed options");
+    Args args;
+
+    desc.add_options()
+        ("help,h", "produce help message")
+        ("tick-period,t", po::value<int>()->value_name("milliseconds"), "set tick period")
+        ("config-file,c", po::value<std::string>(&args.config_file)->value_name("file"), "set config file path")
+        ("www-root,w", po::value<std::string>(&args.www_root)->value_name("dir"), "set static files root")
+        ("randomize-spawn-points", "spawn dogs at random positions");
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+
+    if (vm.contains("help")) {
+        std::cout << desc << "\n";
+        return std::nullopt;
+    }
+
+    if (!vm.contains("config-file")) {
+        throw std::runtime_error("Config file path is required");
+    }
+    if (!vm.contains("www-root")) {
+        throw std::runtime_error("Static files root is required");
+    }
+
+    if (vm.contains("tick-period")) {
+        args.tick_period = vm["tick-period"].as<int>();
+    }
+
+    if (vm.contains("randomize-spawn-points")) {
+        args.randomize_spawn_points = true;
+    }
+
+    return args;
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
     logger::InitBoostLogFilter();
 
-    if (argc != 3) {
-        std::cerr << "Usage: game_server <game-config-json> <static-files-path>" << std::endl;
-        logger::LogServerExited(EXIT_FAILURE, "Invalid command line arguments");
+    std::optional<Args> args;
+    try {
+        args = ParseCommandLine(argc, argv);
+        if (!args) {
+            return EXIT_SUCCESS;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error parsing command line: " << e.what() << std::endl;
+        logger::LogServerExited(EXIT_FAILURE, e.what());
         return EXIT_FAILURE;
     }
 
     try {
-        model::Game game = json_loader::LoadGame(argv[1]);
-        app::App app(game);
+        model::Game game = json_loader::LoadGame(args->config_file);
+        game.SetRandomizedSpawn(args->randomize_spawn_points);
+
+        bool auto_tick = args->tick_period.has_value();
+        app::App app(game, auto_tick);
 
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
@@ -54,9 +112,21 @@ int main(int argc, char* argv[]) {
             }
         });
 
-        // Создаем Strand для потокобезопасной обработки API вызовов
         auto api_strand = net::make_strand(ioc);
-        http_handler::RequestHandler handler{app, argv[2], api_strand};
+
+        std::shared_ptr<ticker::Ticker> ticker;
+        if (auto_tick) {
+            ticker = std::make_shared<ticker::Ticker>(
+                api_strand,
+                std::chrono::milliseconds(*args->tick_period),
+                [&app](std::chrono::milliseconds delta) {
+                    app.Tick(delta);
+                }
+            );
+            ticker->Start();
+        }
+
+        http_handler::RequestHandler handler{app, args->www_root, api_strand};
         LoggingRequestHandler logging_handler{std::move(handler)};
 
         const auto address = net::ip::make_address("0.0.0.0");
