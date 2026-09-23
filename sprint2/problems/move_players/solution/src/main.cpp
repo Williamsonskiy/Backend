@@ -1,6 +1,7 @@
 #include "sdk.h"
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/strand.hpp>
 #include <iostream>
 #include <thread>
 #include "json_loader.h"
@@ -40,13 +41,9 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        // 1. Загружаем карту
         model::Game game = json_loader::LoadGame(argv[1]);
-        
-        // 2. Инициализируем Application (бизнес-логика, токены, сессии)
         app::App app(game);
 
-        // 3. Инициализируем io_context
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
 
@@ -57,18 +54,17 @@ int main(int argc, char* argv[]) {
             }
         });
 
-        // 4. Создаем обработчик, передаем в него app (вместо game)
-        http_handler::RequestHandler handler{app, argv[2]};
+        // Создаем Strand для потокобезопасной обработки API вызовов
+        auto api_strand = net::make_strand(ioc);
+        http_handler::RequestHandler handler{app, argv[2], api_strand};
         LoggingRequestHandler logging_handler{std::move(handler)};
 
         const auto address = net::ip::make_address("0.0.0.0");
         constexpr net::ip::port_type port = 8080;
 
-        // 5. Запускаем сервер
         http_server::ServeHttp(ioc, {address, port}, logging_handler);
         logger::LogServerStarted(address.to_string(), port);
 
-        // 6. Запускаем потоки
         RunWorkers(num_threads, [&ioc] {
             ioc.run();
         });
