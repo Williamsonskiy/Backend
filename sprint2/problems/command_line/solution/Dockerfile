@@ -1,11 +1,12 @@
 # Не просто создаём образ, но даём stage имя build
-FROM gcc:11.3 as build
+FROM gcc:11 as build
 
-RUN apt update && \
-    apt install -y \
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
       python3-pip \
       cmake \
     && \
+    rm -rf /var/lib/apt/lists/* && \
     pip3 install conan==1.*
 
 # Сначала зависимости
