@@ -6,6 +6,7 @@
 #include <iostream>
 #include <thread>
 #include <optional>
+#include <vector>
 #include "json_loader.h"
 #include "request_handler.h"
 #include "app.h"
@@ -44,14 +45,18 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::options_description desc("Allowed options");
     Args args;
 
+    // Используем векторы, чтобы избежать исключения multiple_occurrences, 
+    // если параметры будут переданы и через ENTRYPOINT, и через флаги.
+    std::vector<std::string> config_files;
+    std::vector<std::string> www_roots;
+
     desc.add_options()
         ("help,h", "produce help message")
         ("tick-period,t", po::value<int>()->value_name("milliseconds"), "set tick period")
-        ("config-file,c", po::value<std::string>(&args.config_file)->value_name("file"), "set config file path")
-        ("www-root,w", po::value<std::string>(&args.www_root)->value_name("dir"), "set static files root")
+        ("config-file,c", po::value<std::vector<std::string>>(&config_files)->value_name("file"), "set config file path")
+        ("www-root,w", po::value<std::vector<std::string>>(&www_roots)->value_name("dir"), "set static files root")
         ("randomize-spawn-points", "spawn dogs at random positions");
 
-    // Поддержка позиционных аргументов (для совместимости с тестами, которые запускают без -c и -w)
     po::positional_options_description positional_desc;
     positional_desc.add("config-file", 1);
     positional_desc.add("www-root", 1);
@@ -60,6 +65,7 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::store(po::command_line_parser(argc, argv)
                   .options(desc)
                   .positional(positional_desc)
+                  .allow_unregistered()
                   .run(), vm);
     po::notify(vm);
 
@@ -68,12 +74,15 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         return std::nullopt;
     }
 
-    if (!vm.contains("config-file")) {
+    if (config_files.empty()) {
         throw std::runtime_error("Config file path is required");
     }
-    if (!vm.contains("www-root")) {
+    args.config_file = config_files.back();
+
+    if (www_roots.empty()) {
         throw std::runtime_error("Static files root is required");
     }
+    args.www_root = www_roots.back();
 
     if (vm.contains("tick-period")) {
         args.tick_period = vm["tick-period"].as<int>();
