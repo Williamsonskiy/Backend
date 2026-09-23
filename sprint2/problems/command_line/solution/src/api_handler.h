@@ -27,17 +27,18 @@ public:
         } else if (target == "/api/v1/game/player/action") {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/tick") {
-            if (app_.IsAutoTick()) {
-                return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
+            // Если включен авто-тик, мы игнорируем этот эндпоинт и возвращаем такой же Bad Request
+            // как на несуществующий путь (fall-through в конец функции)
+            if (!app_.IsAutoTick()) {
+                return HandleGameTick(std::move(req), std::forward<Send>(send));
             }
-            return HandleGameTick(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/maps") {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
         } else if (target.starts_with("/api/v1/maps/")) {
             return HandleGetMap(std::move(req), std::forward<Send>(send));
         }
         
-        return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
+        return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Bad request", req));
     }
 
 private:
@@ -58,6 +59,7 @@ private:
         http::response<http::string_body> res(status, req.version());
         res.set(http::field::content_type, "application/json");
         res.set(http::field::cache_control, "no-cache");
+        res.keep_alive(req.keep_alive()); // КРИТИЧНО ВАЖНО: сохраняем соединение для Connection Pool тестов
         res.body() = std::string(body);
         res.prepare_payload();
         return res;
