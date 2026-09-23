@@ -74,7 +74,7 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
                   .run(), vm);
     po::notify(vm);
 
-    // ИСПРАВЛЕНИЕ: Если помощь запрошена ИЛИ аргументов нет вообще (argc == 1)
+    // Если помощь запрошена ИЛИ аргументов нет вообще (argc == 1)
     if (vm.contains("help") || argc == 1) {
         std::cout << visible_desc << "\n";
         return std::nullopt;
