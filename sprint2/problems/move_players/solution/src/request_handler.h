@@ -3,6 +3,7 @@
 #include "api_handler.h"
 #include "logger.h"
 #include <boost/asio.hpp>
+#include <boost/asio/strand.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
 #include <optional>
@@ -22,9 +23,12 @@ std::string getContentType(const fs::path& filePath);
 
 class RequestHandler {
 public:
-    explicit RequestHandler(app::App& app, fs::path static_path)
+    using Strand = boost::asio::strand<boost::asio::io_context::executor_type>;
+
+    explicit RequestHandler(app::App& app, fs::path static_path, Strand api_strand)
         : api_handler_(app)
-        , static_path_{fs::weakly_canonical(std::move(static_path))} {
+        , static_path_{fs::weakly_canonical(std::move(static_path))}
+        , api_strand_(api_strand) {
     }
 
     RequestHandler(const RequestHandler&) = default;
@@ -35,9 +39,12 @@ public:
         std::string target(req.target());
         target = urlDecode(target);
 
-        // --- Обработка API ---
+        // --- Обработка API с гарантией последовательного выполнения через strand ---
         if (target.starts_with("/api/")) {
-            return api_handler_.HandleRequest(std::move(req), std::forward<Send>(send));
+            auto handle = [this, req = std::move(req), send_copy = std::forward<Send>(send)]() mutable {
+                api_handler_.HandleRequest(std::move(req), std::move(send_copy));
+            };
+            return boost::asio::dispatch(api_strand_, std::move(handle));
         }
 
         // --- Обработка статических файлов ---
@@ -83,6 +90,7 @@ public:
 private:
     ApiHandler api_handler_;
     fs::path static_path_;
+    Strand api_strand_;
 };
 
 } // namespace http_handler
