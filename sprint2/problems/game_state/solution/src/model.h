@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <deque>
+#include <string_view>
 #include "tagged.h"
 
 namespace model {
@@ -14,6 +15,21 @@ struct Point { Coord x, y; };
 struct Size { Dimension width, height; };
 struct Rectangle { Point position; Size size; };
 struct Offset { Dimension dx, dy; };
+
+struct Point2D { double x, y; };
+struct Speed2D { double ux, uy; };
+
+enum class Direction { NORTH, SOUTH, WEST, EAST };
+
+constexpr std::string_view DirectionToString(Direction dir) {
+    switch (dir) {
+        case Direction::NORTH: return "U";
+        case Direction::SOUTH: return "D";
+        case Direction::WEST:  return "L";
+        case Direction::EAST:  return "R";
+    }
+    return "U";
+}
 
 class Road {
     struct HorizontalTag { explicit HorizontalTag() = default; };
@@ -85,24 +101,34 @@ private:
 class Dog {
 public:
     using Id = size_t;
-    Dog(Id id, std::string name) : id_(id), name_(std::move(name)) {}
+    Dog(Id id, std::string name, Point2D pos) 
+        : id_(id), name_(std::move(name)), pos_(pos), speed_({0.0, 0.0}), dir_(Direction::NORTH) {}
+        
     Id GetId() const { return id_; }
     const std::string& GetName() const { return name_; }
+    Point2D GetPosition() const { return pos_; }
+    Speed2D GetSpeed() const { return speed_; }
+    Direction GetDirection() const { return dir_; }
+
 private:
     Id id_;
     std::string name_;
+    Point2D pos_;
+    Speed2D speed_;
+    Direction dir_;
 };
 
 class GameSession {
 public:
     explicit GameSession(const Map* map) : map_(map) {}
     const Map* GetMap() const { return map_; }
-    Dog* AddDog(const std::string& name) {
-        dogs_.emplace_back(dog_id_counter_++, name);
-        return &dogs_.back();
-    }
+    
+    Dog* AddDog(const std::string& name);
+    
     const std::deque<Dog>& GetDogs() const { return dogs_; }
 private:
+    Point2D GetRandomRoadPosition() const;
+
     const Map* map_;
     std::deque<Dog> dogs_;
     size_t dog_id_counter_ = 0;
