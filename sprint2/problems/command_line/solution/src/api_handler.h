@@ -27,6 +27,9 @@ public:
         } else if (target == "/api/v1/game/player/action") {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/tick") {
+            if (app_.IsAutoTick()) {
+                return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
+            }
             return HandleGameTick(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/maps") {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
@@ -34,7 +37,7 @@ public:
             return HandleGetMap(std::move(req), std::forward<Send>(send));
         }
         
-        return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Bad request", req));
+        return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
     }
 
 private:
