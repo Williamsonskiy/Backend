@@ -27,9 +27,10 @@ public:
         } else if (target == "/api/v1/game/player/action") {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/tick") {
-            // Если включен авто-тик, мы игнорируем этот эндпоинт и возвращаем такой же Bad Request
-            // как на несуществующий путь (fall-through в конец функции)
-            if (!app_.IsAutoTick()) {
+            // ТРЕБОВАНИЕ ЗАДАНИЯ: если авто-тик включен, возвращаем Invalid endpoint
+            if (app_.IsAutoTick()) {
+                return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
+            } else {
                 return HandleGameTick(std::move(req), std::forward<Send>(send));
             }
         } else if (target == "/api/v1/maps") {
@@ -59,7 +60,7 @@ private:
         http::response<http::string_body> res(status, req.version());
         res.set(http::field::content_type, "application/json");
         res.set(http::field::cache_control, "no-cache");
-        res.keep_alive(req.keep_alive()); // КРИТИЧНО ВАЖНО: сохраняем соединение для Connection Pool тестов
+        res.keep_alive(req.keep_alive()); // КРИТИЧНО ВАЖНО ДЛЯ ТЕСТОВ ПРАКТИКУМА!
         res.body() = std::string(body);
         res.prepare_payload();
         return res;
@@ -220,7 +221,7 @@ private:
     template <typename Request, typename Send>
     void HandleGameTick(Request&& req, Send&& send) {
         if (req.method() != http::verb::post) {
-            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "POST"));
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
         }
 
         auto ct_it = req.find(http::field::content_type);
