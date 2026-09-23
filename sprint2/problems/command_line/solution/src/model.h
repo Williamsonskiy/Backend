@@ -107,7 +107,6 @@ private:
     OfficeIdToIndex warehouse_id_to_index_;
     Offices offices_;
 
-    // Оптимизированный поиск участков дорог
     std::unordered_map<int, std::vector<size_t>> horizontal_roads_;
     std::unordered_map<int, std::vector<size_t>> vertical_roads_;
 };
@@ -156,7 +155,7 @@ private:
 
 class GameSession {
 public:
-    explicit GameSession(const Map* map) : map_(map) {}
+    explicit GameSession(const Map* map, bool random_spawn) : map_(map), random_spawn_(random_spawn) {}
     const Map* GetMap() const { return map_; }
     
     Dog* AddDog(const std::string& name);
@@ -167,6 +166,7 @@ private:
     Point2D GetSpawnPosition() const;
 
     const Map* map_;
+    bool random_spawn_;
     std::deque<Dog> dogs_;
     size_t dog_id_counter_ = 0;
 };
@@ -174,6 +174,9 @@ private:
 class Game {
 public:
     using Maps = std::vector<Map>;
+
+    void SetRandomizedSpawn(bool random_spawn) { random_spawn_ = random_spawn; }
+
     void AddMap(Map map);
     const Maps& GetMaps() const noexcept { return maps_; }
     const Map* FindMap(const Map::Id& id) const noexcept {
@@ -193,6 +196,7 @@ private:
 
     std::vector<Map> maps_;
     MapIdToIndex map_id_to_index_;
+    bool random_spawn_ = false;
     
     std::deque<GameSession> sessions_;
     MapIdToIndex map_id_to_session_index_;
