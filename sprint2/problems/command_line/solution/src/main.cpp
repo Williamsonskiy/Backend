@@ -44,16 +44,13 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     namespace po = boost::program_options;
     
     Args args;
-    std::vector<std::string> config_files;
-    std::vector<std::string> www_roots;
-    std::vector<int> tick_periods;
 
     po::options_description visible_desc("Allowed options");
     visible_desc.add_options()
         ("help,h", "produce help message")
-        ("tick-period,t", po::value(&tick_periods)->value_name("milliseconds"), "set tick period")
-        ("config-file,c", po::value(&config_files)->value_name("file"), "set config file path")
-        ("www-root,w", po::value(&www_roots)->value_name("dir"), "set static files root")
+        ("tick-period,t", po::value<int>(), "set tick period")
+        ("config-file,c", po::value<std::string>(), "set config file path")
+        ("www-root,w", po::value<std::string>(), "set static files root")
         ("randomize-spawn-points", po::bool_switch(&args.randomize_spawn_points), "spawn dogs at random positions");
 
     po::options_description hidden_desc("Hidden options");
@@ -74,17 +71,19 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
                   .run(), vm);
     po::notify(vm);
 
-    // Выходим только если явно просят help
     if (vm.contains("help")) {
         std::cout << visible_desc << "\n";
         return std::nullopt;
     }
 
-    if (!config_files.empty()) {
-        args.config_file = config_files.back();
+    if (vm.contains("config-file")) {
+        args.config_file = vm["config-file"].as<std::string>();
     }
-    if (!www_roots.empty()) {
-        args.www_root = www_roots.back();
+    if (vm.contains("www-root")) {
+        args.www_root = vm["www-root"].as<std::string>();
+    }
+    if (vm.contains("tick-period")) {
+        args.tick_period = vm["tick-period"].as<int>();
     }
 
     if (vm.contains("positional")) {
@@ -99,16 +98,11 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         }
     }
 
-    // Задаем значения по умолчанию, если параметры не переданы
     if (args.config_file.empty()) {
         args.config_file = "data/config.json";
     }
     if (args.www_root.empty()) {
         args.www_root = "static";
-    }
-
-    if (!tick_periods.empty()) {
-        args.tick_period = tick_periods.back();
     }
 
     return args;
