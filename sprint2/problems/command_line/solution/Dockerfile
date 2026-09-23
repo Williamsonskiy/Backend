@@ -23,5 +23,5 @@ RUN cd /app/build && \
 RUN useradd -r -u 888 appuser
 USER appuser
 
-# Важно: оставляем только бинарник. Все аргументы (-c, -w) передадут сами автотесты
+# Важно: оставляем только бинарник. Все аргументы передадут сами автотесты
 ENTRYPOINT ["/app/build/bin/game_server"]
