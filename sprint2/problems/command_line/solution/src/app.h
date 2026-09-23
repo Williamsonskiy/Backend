@@ -44,6 +44,7 @@ private:
 
 class App {
 public:
+    // Добавлен флаг auto_tick
     explicit App(model::Game& game, bool auto_tick = false) 
         : game_(game), auto_tick_(auto_tick) {}
 
@@ -80,7 +81,7 @@ public:
 
 private:
     model::Game& game_;
-    bool auto_tick_;
+    bool auto_tick_; // Сохраняем флаг
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
 };
