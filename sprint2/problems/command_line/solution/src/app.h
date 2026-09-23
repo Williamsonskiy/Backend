@@ -44,7 +44,10 @@ private:
 
 class App {
 public:
-    explicit App(model::Game& game) : game_(game) {}
+    explicit App(model::Game& game, bool auto_tick = false) 
+        : game_(game), auto_tick_(auto_tick) {}
+
+    bool IsAutoTick() const { return auto_tick_; }
 
     std::pair<Token, model::Dog::Id> JoinGame(const std::string& player_name, const model::Map::Id& map_id) {
         auto* session = game_.GetSession(map_id);
@@ -77,6 +80,7 @@ public:
 
 private:
     model::Game& game_;
+    bool auto_tick_;
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
 };
