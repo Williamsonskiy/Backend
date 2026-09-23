@@ -1,8 +1,9 @@
-# Не просто создаём образ, но даём stage имя build
-FROM gcc:11 as build
+# Используем ту же ОС, что и для run-стадии
+FROM ubuntu:22.04 as build
 
 RUN apt-get update --fix-missing && \
     apt-get install -y --no-install-recommends \
+      build-essential \
       python3-pip \
       cmake \
     && \
