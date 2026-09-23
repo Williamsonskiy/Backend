@@ -63,6 +63,7 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::options_description all_desc("All options");
     all_desc.add(visible_desc).add(hidden_desc);
 
+    // Все аргументы без флагов полетят в "positional"
     po::positional_options_description positional_desc;
     positional_desc.add("positional", -1);
 
@@ -70,7 +71,7 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::store(po::command_line_parser(argc, argv)
                   .options(all_desc)
                   .positional(positional_desc)
-                  .allow_unregistered() // Игнорируем любые неопознанные флаги от тестов
+                  .allow_unregistered() // Игнорируем любые неопознанные флаги от автотестов
                   .run(), vm);
     po::notify(vm);
 
@@ -79,18 +80,25 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         return std::nullopt;
     }
 
+    // 1. Сначала пытаемся получить пути из явных флагов (-c и -w)
     if (!config_files.empty()) {
         args.config_file = config_files.back();
-    } else if (vm.contains("positional")) {
-        const auto& pos_args = vm["positional"].as<std::vector<std::string>>();
-        if (pos_args.size() > 0) args.config_file = pos_args[0];
     }
-
     if (!www_roots.empty()) {
         args.www_root = www_roots.back();
-    } else if (vm.contains("positional")) {
+    }
+
+    // 2. Если чего-то не хватает, добираем из позиционных аргументов (без флагов)
+    if (vm.contains("positional")) {
         const auto& pos_args = vm["positional"].as<std::vector<std::string>>();
-        if (pos_args.size() > 1) args.www_root = pos_args[1];
+        size_t pos_idx = 0;
+        
+        if (args.config_file.empty() && pos_idx < pos_args.size()) {
+            args.config_file = pos_args[pos_idx++];
+        }
+        if (args.www_root.empty() && pos_idx < pos_args.size()) {
+            args.www_root = pos_args[pos_idx++];
+        }
     }
 
     if (args.config_file.empty()) {
