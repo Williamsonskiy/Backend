@@ -1,30 +1,45 @@
-FROM ubuntu:22.04
+# 1. Стадия сборки (Build stage)
+FROM gcc:11.3 AS build
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt update && \
+# Удаляем проблемные репозитории security, обновляем apt и устанавливаем зависимости
+RUN sed -i '/security/d' /etc/apt/sources.list && \
+    apt update && \
     apt install -y \
-      build-essential \
-      g++ \
-      cmake \
-      python3-pip \
+        python3-pip \
+        cmake \
     && \
     pip3 install conan==1.*
 
+# Настройка профиля Conan
+RUN conan profile new default --detect && \
+    conan profile update settings.compiler.libcxx=libstdc++11 default
+
+# Копируем конфигурацию Conan и устанавливаем зависимости
 COPY conanfile.txt /app/
-RUN mkdir /app/build && cd /app/build && \
-    conan install .. --build=missing -s compiler.libcxx=libstdc++11
+WORKDIR /app
+RUN mkdir build && cd build && \
+    conan install .. --build=missing -s build_type=Release
 
+# Копируем исходный код проекта и собираем
 COPY . /app
-
-RUN cd /app/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+RUN cd build && \
+    cmake -D CMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-COPY data /app/data
-COPY static /app/static
+# 2. Финальная стадия запуска (Run stage)
+FROM ubuntu:22.04 AS run
 
-RUN useradd -r -u 888 appuser
-USER appuser
+# Создаём пользователя без привилегий
+RUN groupadd -r www && useradd -r -g www www
 
-ENTRYPOINT ["/app/build/bin/game_server"]
+# Копируем собранный исполняемый файл и статические ресурсы
+WORKDIR /app
+COPY --from=build /app/build/bin/game_server /app/bin/game_server
+COPY ./static /app/static
+COPY ./data /app/data
+
+# Переключаемся на непривилегированного пользователя
+USER www
+
+# Точка входа для запуска сервера
+ENTRYPOINT ["/app/bin/game_server", "-c", "/app/data/config.json", "-w", "/app/static"]
