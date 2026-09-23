@@ -21,12 +21,10 @@ RUN cd /app/build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-# Критично: данные, которые ожидают автотесты
 COPY data /app/data
 COPY static /app/static
 
 RUN useradd -r -u 888 appuser
 USER appuser
 
-# Аргументы (-c, -w, -t и т.д.) передают сами автотесты
 ENTRYPOINT ["/app/build/bin/game_server"]
