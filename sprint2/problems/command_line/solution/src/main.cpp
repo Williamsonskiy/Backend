@@ -51,8 +51,16 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         ("www-root,w", po::value<std::string>(&args.www_root)->value_name("dir"), "set static files root")
         ("randomize-spawn-points", "spawn dogs at random positions");
 
+    // Поддержка позиционных аргументов (для совместимости с тестами, которые запускают без -c и -w)
+    po::positional_options_description positional_desc;
+    positional_desc.add("config-file", 1);
+    positional_desc.add("www-root", 1);
+
     po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::store(po::command_line_parser(argc, argv)
+                  .options(desc)
+                  .positional(positional_desc)
+                  .run(), vm);
     po::notify(vm);
 
     if (vm.contains("help")) {
