@@ -23,4 +23,6 @@ RUN cd /app/build && \
 RUN useradd -r -u 888 appuser
 USER appuser
 
-ENTRYPOINT ["/app/build/bin/game_server"]
+# Возвращаем пути по умолчанию. 
+# Если тесты докинут флаги вроде --tick-period, они просто допишутся в конец команды и корректно распарсятся
+ENTRYPOINT ["/app/build/bin/game_server", "/app/data/config.json", "/app/static"]
