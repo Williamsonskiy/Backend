@@ -77,12 +77,15 @@ public:
     using Buildings = std::vector<Building>;
     using Offices = std::vector<Office>;
 
-    Map(Id id, std::string name) noexcept : id_(std::move(id)), name_(std::move(name)) {}
+    Map(Id id, std::string name, double dog_speed = 1.0) noexcept 
+        : id_(std::move(id)), name_(std::move(name)), dog_speed_(dog_speed) {}
+        
     const Id& GetId() const noexcept { return id_; }
     const std::string& GetName() const noexcept { return name_; }
     const Buildings& GetBuildings() const noexcept { return buildings_; }
     const Roads& GetRoads() const noexcept { return roads_; }
     const Offices& GetOffices() const noexcept { return offices_; }
+    double GetDogSpeed() const noexcept { return dog_speed_; }
 
     void AddRoad(const Road& road) { roads_.emplace_back(road); }
     void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
@@ -92,6 +95,7 @@ private:
     using OfficeIdToIndex = std::unordered_map<Office::Id, size_t, util::TaggedHasher<Office::Id>>;
     Id id_;
     std::string name_;
+    double dog_speed_;
     Roads roads_;
     Buildings buildings_;
     OfficeIdToIndex warehouse_id_to_index_;
@@ -109,6 +113,27 @@ public:
     Point2D GetPosition() const { return pos_; }
     Speed2D GetSpeed() const { return speed_; }
     Direction GetDirection() const { return dir_; }
+
+    void SetSpeed(Speed2D speed) { speed_ = speed; }
+    void SetDirection(Direction dir) { dir_ = dir; }
+
+    void Move(std::string_view move_cmd, double speed) {
+        if (move_cmd == "U") {
+            dir_ = Direction::NORTH;
+            speed_ = {0.0, -speed};
+        } else if (move_cmd == "D") {
+            dir_ = Direction::SOUTH;
+            speed_ = {0.0, speed};
+        } else if (move_cmd == "L") {
+            dir_ = Direction::WEST;
+            speed_ = {-speed, 0.0};
+        } else if (move_cmd == "R") {
+            dir_ = Direction::EAST;
+            speed_ = {speed, 0.0};
+        } else if (move_cmd == "") {
+            speed_ = {0.0, 0.0};
+        }
+    }
 
 private:
     Id id_;
