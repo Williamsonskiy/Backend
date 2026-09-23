@@ -74,7 +74,6 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
                   .run(), vm);
     po::notify(vm);
 
-    // Если помощь запрошена ИЛИ аргументов нет вообще (argc == 1)
     if (vm.contains("help") || argc == 1) {
         std::cout << visible_desc << "\n";
         return std::nullopt;
@@ -122,7 +121,6 @@ int main(int argc, char* argv[]) {
     try {
         args = ParseCommandLine(argc, argv);
         if (!args) {
-            // Успешный выход, если была запрошена помощь или не передано аргументов
             return EXIT_SUCCESS; 
         }
     } catch (const std::exception& e) {
