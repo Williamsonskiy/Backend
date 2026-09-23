@@ -26,6 +26,8 @@ public:
             return HandleGetGameState(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/player/action") {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
+        } else if (target == "/api/v1/game/tick") {
+            return HandleGameTick(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/maps") {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
         } else if (target.starts_with("/api/v1/maps/")) {
@@ -205,6 +207,41 @@ private:
         model::Dog* dog = player->GetDog();
         double speed = player->GetSession()->GetMap()->GetDogSpeed();
         dog->Move(move_cmd, speed);
+
+        json::object response_obj;
+        send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
+    }
+
+    template <typename Request, typename Send>
+    void HandleGameTick(Request&& req, Send&& send) {
+        if (req.method() != http::verb::post) {
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
+        }
+
+        auto ct_it = req.find(http::field::content_type);
+        if (ct_it == req.end() || ct_it->value() != "application/json") {
+            return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Invalid content type", req));
+        }
+
+        int time_delta = 0;
+        try {
+            json::value jv = json::parse(req.body());
+            if (!jv.is_object() || !jv.as_object().contains("timeDelta")) {
+                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+            }
+            const auto& val = jv.as_object().at("timeDelta");
+            if (val.is_int64()) {
+                time_delta = val.as_int64();
+            } else if (val.is_uint64()) {
+                time_delta = val.as_uint64();
+            } else {
+                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+            }
+        } catch (...) {
+            return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+        }
+
+        app_.Tick(std::chrono::milliseconds(time_delta));
 
         json::object response_obj;
         send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
