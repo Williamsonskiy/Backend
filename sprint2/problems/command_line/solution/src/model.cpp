@@ -6,14 +6,43 @@
 namespace model {
 using namespace std::literals;
 
+namespace {
+    double GetRandomDouble(double min, double max) {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        std::uniform_real_distribution<double> dist(min, max);
+        return dist(gen);
+    }
+    size_t GetRandomIndex(size_t max) {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        std::uniform_int_distribution<size_t> dist(0, max);
+        return dist(gen);
+    }
+}
+
 Point2D GameSession::GetSpawnPosition() const {
     const auto& roads = map_->GetRoads();
     if (roads.empty()) {
         return {0.0, 0.0};
     }
-    // Временное изменение для автотестов: спавн всегда на начале первой дороги
-    return {static_cast<double>(roads.front().GetStart().x), 
-            static_cast<double>(roads.front().GetStart().y)};
+    
+    if (!random_spawn_) {
+        return {static_cast<double>(roads.front().GetStart().x), 
+                static_cast<double>(roads.front().GetStart().y)};
+    }
+    
+    const auto& road = roads[GetRandomIndex(roads.size() - 1)];
+    
+    if (road.IsHorizontal()) {
+        double start_x = std::min(road.GetStart().x, road.GetEnd().x);
+        double end_x = std::max(road.GetStart().x, road.GetEnd().x);
+        return {GetRandomDouble(start_x, end_x), static_cast<double>(road.GetStart().y)};
+    } else {
+        double start_y = std::min(road.GetStart().y, road.GetEnd().y);
+        double end_y = std::max(road.GetStart().y, road.GetEnd().y);
+        return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
+    }
 }
 
 Dog* GameSession::AddDog(const std::string& name) {
@@ -60,21 +89,21 @@ void GameSession::Tick(double delta_s) {
             }
             
             if (horizontal) {
-                if (positive) { // Движение вправо (EAST)
+                if (positive) { 
                     if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
                     if (target_x <= bound_x) { pos.x = target_x; break; }
                     pos.x = bound_x;
-                } else { // Движение влево (WEST)
+                } else { 
                     if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
                     if (target_x >= bound_x) { pos.x = target_x; break; }
                     pos.x = bound_x;
                 }
             } else {
-                if (positive) { // Движение вниз (SOUTH)
+                if (positive) { 
                     if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
                     if (target_y <= bound_y) { pos.y = target_y; break; }
                     pos.y = bound_y;
-                } else { // Движение вверх (NORTH)
+                } else { 
                     if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
                     if (target_y >= bound_y) { pos.y = target_y; break; }
                     pos.y = bound_y;
@@ -176,7 +205,7 @@ GameSession* Game::AddSession(const Map::Id& map_id) {
     if (!map) return nullptr;
 
     const size_t index = sessions_.size();
-    sessions_.emplace_back(map);
+    sessions_.emplace_back(map, random_spawn_);
     try {
         map_id_to_session_index_[map_id] = index;
     } catch (...) {
