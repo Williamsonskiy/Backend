@@ -74,7 +74,8 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
                   .run(), vm);
     po::notify(vm);
 
-    if (vm.contains("help") || argc == 1) {
+    // Выходим только если явно просят help
+    if (vm.contains("help")) {
         std::cout << visible_desc << "\n";
         return std::nullopt;
     }
@@ -98,11 +99,12 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         }
     }
 
+    // Задаем значения по умолчанию, если параметры не переданы
     if (args.config_file.empty()) {
-        throw std::runtime_error("Config file path is required");
+        args.config_file = "data/config.json";
     }
     if (args.www_root.empty()) {
-        throw std::runtime_error("Static files root is required");
+        args.www_root = "static";
     }
 
     if (!tick_periods.empty()) {
