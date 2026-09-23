@@ -218,7 +218,7 @@ private:
     template <typename Request, typename Send>
     void HandleGameTick(Request&& req, Send&& send) {
         if (req.method() != http::verb::post) {
-            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "POST"));
         }
 
         auto ct_it = req.find(http::field::content_type);
