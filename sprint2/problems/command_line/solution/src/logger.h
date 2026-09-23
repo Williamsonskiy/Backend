@@ -11,6 +11,7 @@
 #include <string_view>
 #include <optional>
 #include <string>
+#include <iostream>
 
 namespace logger {
 
@@ -46,7 +47,7 @@ inline void JsonFormatter(const logging::record_view& rec, logging::basic_format
 inline void InitBoostLogFilter() {
     logging::add_common_attributes();
     logging::add_console_log(
-        std::clog,
+        std::cout,
         keywords::format = &JsonFormatter,
         keywords::auto_flush = true // КРИТИЧНО: сбрасываем буфер сразу, чтобы автотесты не получали пустые строки
     );
@@ -76,7 +77,7 @@ inline void LogServerExited(int code, const std::optional<std::string>& exceptio
         << "server exited";
 }
 
-// Лог сетевой ошибки (ЭТОГО НЕ ХВАТАЛО)
+// Лог сетевой ошибки
 inline void LogNetworkError(int code, const std::string& text, std::string_view where) {
     json::object data;
     data["code"] = code;
