@@ -41,5 +41,6 @@ COPY ./data /app/data
 # Переключаемся на непривилегированного пользователя
 USER www
 
-# Точка входа для запуска сервера
-ENTRYPOINT ["/app/bin/game_server", "-c", "/app/data/config.json", "-w", "/app/static"]
+# Точка входа: только бинарник, аргументы по умолчанию — в CMD
+ENTRYPOINT ["/app/bin/game_server"]
+CMD ["-c", "/app/data/config.json", "-w", "/app/static"]
