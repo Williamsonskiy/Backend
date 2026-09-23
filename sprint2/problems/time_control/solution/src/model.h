@@ -4,6 +4,8 @@
 #include <vector>
 #include <deque>
 #include <string_view>
+#include <chrono>
+#include <cmath>
 #include "tagged.h"
 
 namespace model {
@@ -87,9 +89,13 @@ public:
     const Offices& GetOffices() const noexcept { return offices_; }
     double GetDogSpeed() const noexcept { return dog_speed_; }
 
-    void AddRoad(const Road& road) { roads_.emplace_back(road); }
+    void AddRoad(const Road& road);
     void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
     void AddOffice(Office office);
+
+    void GetRoadBounds(const Road& road, double& min_x, double& max_x, double& min_y, double& max_y) const;
+    bool IsPointInRoad(Point2D p, const Road& road) const;
+    std::vector<const Road*> GetRoadsContaining(Point2D p) const;
 
 private:
     using OfficeIdToIndex = std::unordered_map<Office::Id, size_t, util::TaggedHasher<Office::Id>>;
@@ -100,6 +106,10 @@ private:
     Buildings buildings_;
     OfficeIdToIndex warehouse_id_to_index_;
     Offices offices_;
+
+    // Оптимизированный поиск участков дорог
+    std::unordered_map<int, std::vector<size_t>> horizontal_roads_;
+    std::unordered_map<int, std::vector<size_t>> vertical_roads_;
 };
 
 class Dog {
@@ -114,6 +124,7 @@ public:
     Speed2D GetSpeed() const { return speed_; }
     Direction GetDirection() const { return dir_; }
 
+    void SetPosition(Point2D pos) { pos_ = pos; }
     void SetSpeed(Speed2D speed) { speed_ = speed; }
     void SetDirection(Direction dir) { dir_ = dir; }
 
@@ -149,10 +160,11 @@ public:
     const Map* GetMap() const { return map_; }
     
     Dog* AddDog(const std::string& name);
+    void Tick(double delta_s);
     
     const std::deque<Dog>& GetDogs() const { return dogs_; }
 private:
-    Point2D GetRandomRoadPosition() const;
+    Point2D GetSpawnPosition() const;
 
     const Map* map_;
     std::deque<Dog> dogs_;
@@ -172,6 +184,8 @@ public:
     }
     GameSession* GetSession(const Map::Id& map_id);
     GameSession* AddSession(const Map::Id& map_id);
+    
+    void Tick(std::chrono::milliseconds delta);
 
 private:
     using MapIdHasher = util::TaggedHasher<Map::Id>;
