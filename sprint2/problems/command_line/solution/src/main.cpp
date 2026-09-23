@@ -63,7 +63,6 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::options_description all_desc("All options");
     all_desc.add(visible_desc).add(hidden_desc);
 
-    // Все аргументы без флагов полетят в "positional"
     po::positional_options_description positional_desc;
     positional_desc.add("positional", -1);
 
@@ -71,16 +70,16 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     po::store(po::command_line_parser(argc, argv)
                   .options(all_desc)
                   .positional(positional_desc)
-                  .allow_unregistered() // Игнорируем любые неопознанные флаги от автотестов
+                  .allow_unregistered() 
                   .run(), vm);
     po::notify(vm);
 
-    if (vm.contains("help")) {
+    // ИСПРАВЛЕНИЕ: Если помощь запрошена ИЛИ аргументов нет вообще (argc == 1)
+    if (vm.contains("help") || argc == 1) {
         std::cout << visible_desc << "\n";
         return std::nullopt;
     }
 
-    // 1. Сначала пытаемся получить пути из явных флагов (-c и -w)
     if (!config_files.empty()) {
         args.config_file = config_files.back();
     }
@@ -88,7 +87,6 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         args.www_root = www_roots.back();
     }
 
-    // 2. Если чего-то не хватает, добираем из позиционных аргументов (без флагов)
     if (vm.contains("positional")) {
         const auto& pos_args = vm["positional"].as<std::vector<std::string>>();
         size_t pos_idx = 0;
@@ -124,7 +122,8 @@ int main(int argc, char* argv[]) {
     try {
         args = ParseCommandLine(argc, argv);
         if (!args) {
-            return EXIT_SUCCESS;
+            // Успешный выход, если была запрошена помощь или не передано аргументов
+            return EXIT_SUCCESS; 
         }
     } catch (const std::exception& e) {
         std::cerr << "Error parsing command line: " << e.what() << std::endl;
