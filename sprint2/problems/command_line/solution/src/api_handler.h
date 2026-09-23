@@ -27,7 +27,6 @@ public:
         } else if (target == "/api/v1/game/player/action") {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/game/tick") {
-            // ТРЕБОВАНИЕ ЗАДАНИЯ: если авто-тик включен, возвращаем Invalid endpoint
             if (app_.IsAutoTick()) {
                 return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
             } else {
@@ -60,7 +59,7 @@ private:
         http::response<http::string_body> res(status, req.version());
         res.set(http::field::content_type, "application/json");
         res.set(http::field::cache_control, "no-cache");
-        res.keep_alive(req.keep_alive()); // КРИТИЧНО ВАЖНО ДЛЯ ТЕСТОВ ПРАКТИКУМА!
+        res.keep_alive(req.keep_alive());
         res.body() = std::string(body);
         res.prepare_payload();
         return res;
@@ -224,27 +223,22 @@ private:
             return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
         }
 
-        auto ct_it = req.find(http::field::content_type);
-        if (ct_it == req.end() || ct_it->value() != "application/json") {
-            return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Invalid content type", req));
-        }
-
         int time_delta = 0;
         try {
             json::value jv = json::parse(req.body());
             if (!jv.is_object() || !jv.as_object().contains("timeDelta")) {
-                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+                return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Failed to parse tick request JSON", req));
             }
             const auto& val = jv.as_object().at("timeDelta");
             if (val.is_int64()) {
-                time_delta = val.as_int64();
+                time_delta = static_cast<int>(val.as_int64());
             } else if (val.is_uint64()) {
-                time_delta = val.as_uint64();
+                time_delta = static_cast<int>(val.as_uint64());
             } else {
-                return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+                return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Failed to parse tick request JSON", req));
             }
         } catch (...) {
-            return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
+            return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Failed to parse tick request JSON", req));
         }
 
         app_.Tick(std::chrono::milliseconds(time_delta));
