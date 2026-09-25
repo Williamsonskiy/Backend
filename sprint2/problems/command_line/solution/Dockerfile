@@ -1,47 +1,40 @@
-# 1. Стадия сборки (Build stage)
-# Используем ту же ОС, что и для run-стадии во избежание конфликтов glibc (Segfault на старте)
-FROM ubuntu:22.04 AS build
+# Используем ту же ОС, что и для run-стадии
+FROM ubuntu:22.04 as build
 
-RUN apt update && \
-    apt install -y --no-install-recommends \
-        build-essential \
-        python3-pip \
-        cmake \
+RUN apt-get update --fix-missing && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      python3-pip \
+      cmake \
     && \
     rm -rf /var/lib/apt/lists/* && \
     pip3 install conan==1.*
 
-# Настройка профиля Conan
-RUN conan profile new default --detect && \
-    conan profile update settings.compiler.libcxx=libstdc++11 default
-
-# Копируем конфигурацию Conan и устанавливаем зависимости
+# Сначала зависимости
 COPY conanfile.txt /app/
-WORKDIR /app
-RUN mkdir build && cd build && \
-    conan install .. --build=missing -s build_type=Release
+RUN mkdir /app/build && cd /app/build && \
+    conan install .. --build=missing -s compiler.libcxx=libstdc++11
 
-# Копируем исходный код проекта и собираем
-COPY . /app
-RUN cd build && \
-    cmake -D CMAKE_BUILD_TYPE=Release .. && \
+# Потом исходники
+COPY ./src /app/src
+COPY CMakeLists.txt /app/
+
+RUN cd /app/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
     cmake --build .
 
-# 2. Финальная стадия запуска (Run stage)
-FROM ubuntu:22.04 AS run
+# Второй stage: только запуск
+FROM ubuntu:22.04 as run
 
-# Создаём пользователя без привилегий
+# Создаём отдельного пользователя
 RUN groupadd -r www && useradd -r -g www www
 
-# Копируем собранный исполняемый файл и статические ресурсы
-WORKDIR /app
-COPY --from=build /app/build/bin/game_server /app/bin/game_server
-COPY ./static /app/static
+# Копируем собранный бинарник из stage build
+COPY --from=build /app/build/bin/game_server /app/
 COPY ./data /app/data
+COPY ./static /app/static
 
-# Переключаемся на непривилегированного пользователя
 USER www
 
-# Точка входа: только бинарник, аргументы по умолчанию — в CMD
-ENTRYPOINT ["/app/bin/game_server"]
-CMD ["-c", "/app/data/config.json", "-w", "/app/static"]
+# Команда запуска контейнера
+ENTRYPOINT ["/app/game_server", "-c", "/app/data/config.json", "-w", "/app/static"]
