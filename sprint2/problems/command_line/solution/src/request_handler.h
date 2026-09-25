@@ -21,6 +21,14 @@ std::string urlDecode(const std::string& encodedString);
 bool IsSubPath(fs::path path, fs::path base);
 std::string getContentType(const fs::path& filePath);
 
+// Вспомогательные функции для совместимости с Boost 1.78
+inline boost::beast::string_view ToBoost(std::string_view s) {
+    return {s.data(), s.size()};
+}
+inline std::string_view ToStd(boost::beast::string_view s) {
+    return {s.data(), s.size()};
+}
+
 class RequestHandler {
 public:
     using Strand = boost::asio::strand<boost::asio::io_context::executor_type>;
@@ -36,7 +44,7 @@ public:
 
     template <typename Body, typename Allocator, typename Send>
     void operator()(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
-        std::string target(req.target());
+        std::string target(req.target().data(), req.target().size());
         target = urlDecode(target);
 
         // --- Обработка API с гарантией последовательного выполнения через strand ---
@@ -50,7 +58,7 @@ public:
         // --- Обработка статических файлов ---
         auto text_response = [&req](http::status status, std::string_view text, std::string_view content_type) {
             http::response<http::string_body> response(status, req.version());
-            response.set(http::field::content_type, content_type);
+            response.set(http::field::content_type, ToBoost(content_type));
             response.body() = std::string(text);
             response.content_length(text.size());
             response.keep_alive(req.keep_alive());
@@ -80,7 +88,7 @@ public:
         }
 
         http::response<http::file_body> response(http::status::ok, req.version());
-        response.set(http::field::content_type, getContentType(file_path));
+        response.set(http::field::content_type, ToBoost(getContentType(file_path)));
         response.body() = std::move(file);
         response.prepare_payload();
         response.keep_alive(req.keep_alive());
@@ -107,7 +115,11 @@ public:
     template <typename Body, typename Allocator, typename Send>
     void operator()(std::string_view ip_address, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
         auto start_time = std::chrono::steady_clock::now();
-        logger::LogRequest(ip_address, req.target(), req.method_string());
+        
+        std::string_view target = http_handler::ToStd(req.target());
+        std::string_view method = http_handler::ToStd(req.method_string());
+        
+        logger::LogRequest(ip_address, target, method);
 
         auto logging_send = [start_time, send = std::forward<Send>(send)](auto&& response) {
             auto end_time = std::chrono::steady_clock::now();
@@ -115,7 +127,7 @@ public:
 
             std::optional<std::string> content_type;
             if (response.find(http::field::content_type) != response.end()) {
-                content_type = std::string(response[http::field::content_type]);
+                content_type = std::string(http_handler::ToStd(response[http::field::content_type]));
             }
 
             logger::LogResponse(response_time, response.result_int(), content_type);
