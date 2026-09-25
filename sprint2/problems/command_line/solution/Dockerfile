@@ -1,13 +1,14 @@
 # 1. Стадия сборки (Build stage)
-FROM gcc:11.3 AS build
+# Используем ту же ОС, что и для run-стадии во избежание конфликтов glibc (Segfault на старте)
+FROM ubuntu:22.04 AS build
 
-# Удаляем проблемные репозитории security, обновляем apt и устанавливаем зависимости
-RUN sed -i '/security/d' /etc/apt/sources.list && \
-    apt update && \
-    apt install -y \
+RUN apt update && \
+    apt install -y --no-install-recommends \
+        build-essential \
         python3-pip \
         cmake \
     && \
+    rm -rf /var/lib/apt/lists/* && \
     pip3 install conan==1.*
 
 # Настройка профиля Conan
