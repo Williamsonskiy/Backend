@@ -9,11 +9,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-# Добавил Threads, так как Boost часто от них зависит
+# Добавлена зависимость Threads, она нужна для корректной работы Boost.Thread
 find_package(Threads REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread json log log_setup program_options)
 
-# КРИТИЧЕСКИ ВАЖНО: без этого макроса Boost.Log падает (Segfault) на старте сервера при статической линковке
+# КРИТИЧЕСКИ ВАЖНО: без этого макроса Boost.Log падает на старте сервера при статической линковке
 add_definitions(-DBOOST_LOG_STATIC_LINK)
 
 add_executable(game_server
