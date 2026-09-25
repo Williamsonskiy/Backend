@@ -10,13 +10,21 @@ namespace http_handler {
 namespace http = boost::beast::http;
 namespace json = boost::json;
 
+// Вспомогательные функции
+inline boost::beast::string_view ToBoostStr(std::string_view s) {
+    return {s.data(), s.size()};
+}
+inline std::string_view ToStdStr(boost::beast::string_view s) {
+    return {s.data(), s.size()};
+}
+
 class ApiHandler {
 public:
     explicit ApiHandler(app::App& app) : app_(app) {}
 
     template <typename Body, typename Allocator, typename Send>
     void HandleRequest(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
-        std::string_view target = req.target();
+        std::string_view target = ToStdStr(req.target());
 
         if (target == "/api/v1/game/join") {
             return HandleJoinGame(std::move(req), std::forward<Send>(send));
@@ -49,7 +57,7 @@ private:
         json::object obj = {{"code", code}, {"message", message}};
         auto res = MakeJsonResponse(status, json::serialize(obj), req);
         if (!allow_methods.empty()) {
-            res.set(http::field::allow, allow_methods);
+            res.set(http::field::allow, ToBoostStr(allow_methods));
         }
         return res;
     }
@@ -113,11 +121,15 @@ private:
         }
 
         auto auth_it = req.find(http::field::authorization);
-        if (auth_it == req.end() || !auth_it->value().starts_with("Bearer ") || auth_it->value().size() != 39) {
+        if (auth_it == req.end()) {
+            return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is missing", req));
+        }
+        std::string_view auth_val = ToStdStr(auth_it->value());
+        if (!auth_val.starts_with("Bearer ") || auth_val.size() != 39) {
             return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is missing", req));
         }
 
-        std::string token_str(auth_it->value().substr(7));
+        std::string token_str(auth_val.substr(7));
         app::Player* player = app_.GetPlayerByToken(token_str);
         if (!player) {
             return send(MakeErrorResponse(http::status::unauthorized, "unknownToken", "Player token has not been found", req));
@@ -139,11 +151,15 @@ private:
         }
 
         auto auth_it = req.find(http::field::authorization);
-        if (auth_it == req.end() || !auth_it->value().starts_with("Bearer ") || auth_it->value().size() != 39) {
+        if (auth_it == req.end()) {
+            return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
+        }
+        std::string_view auth_val = ToStdStr(auth_it->value());
+        if (!auth_val.starts_with("Bearer ") || auth_val.size() != 39) {
             return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
         }
 
-        std::string token_str(auth_it->value().substr(7));
+        std::string token_str(auth_val.substr(7));
         app::Player* player = app_.GetPlayerByToken(token_str);
         if (!player) {
             return send(MakeErrorResponse(http::status::unauthorized, "unknownToken", "Player token has not been found", req));
@@ -172,16 +188,20 @@ private:
         }
 
         auto ct_it = req.find(http::field::content_type);
-        if (ct_it == req.end() || ct_it->value() != "application/json") {
+        if (ct_it == req.end() || ToStdStr(ct_it->value()) != "application/json") {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Invalid content type", req));
         }
 
         auto auth_it = req.find(http::field::authorization);
-        if (auth_it == req.end() || !auth_it->value().starts_with("Bearer ") || auth_it->value().size() != 39) {
+        if (auth_it == req.end()) {
+            return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
+        }
+        std::string_view auth_val = ToStdStr(auth_it->value());
+        if (!auth_val.starts_with("Bearer ") || auth_val.size() != 39) {
             return send(MakeErrorResponse(http::status::unauthorized, "invalidToken", "Authorization header is required", req));
         }
 
-        std::string token_str(auth_it->value().substr(7));
+        std::string token_str(auth_val.substr(7));
         app::Player* player = app_.GetPlayerByToken(token_str);
         if (!player) {
             return send(MakeErrorResponse(http::status::unauthorized, "unknownToken", "Player token has not been found", req));
@@ -215,17 +235,14 @@ private:
             return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Only POST method is expected", req, "POST"));
         }
         
-        // Яндекс тесты требуют проверку Content-Type
         auto ct_it = req.find(http::field::content_type);
-        if (ct_it == req.end() || ct_it->value() != "application/json") {
+        if (ct_it == req.end() || ToStdStr(ct_it->value()) != "application/json") {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Invalid content type", req));
         }
 
         int time_delta = 0;
         try {
             json::value jv = json::parse(req.body());
-            
-            // Если поля нет, код должен быть invalidArgument, а не badRequest
             if (!jv.is_object() || !jv.as_object().contains("timeDelta")) {
                 return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
             }
@@ -270,7 +287,7 @@ private:
             return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
         }
         
-        std::string map_id = std::string(req.target().substr(13));
+        std::string map_id = std::string(ToStdStr(req.target()).substr(13));
         const auto* map = app_.GetGame().FindMap(model::Map::Id{map_id});
         if (!map) {
             return send(MakeErrorResponse(http::status::not_found, "mapNotFound", "Map not found", req));
