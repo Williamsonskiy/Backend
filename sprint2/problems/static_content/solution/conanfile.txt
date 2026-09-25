@@ -1,6 +1,9 @@
 [requires]
 boost/1.82.0
 
+[options]
+boost/*:header_only=True
+
 [generators]
-CMakeDeps
-CMakeToolchain
+cmake_find_package
+cmake_paths
