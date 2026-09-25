@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Подтягиваем пути conan для старых и новых генераторов
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
+include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake OPTIONAL)
 
 find_package(Boost REQUIRED COMPONENTS system thread json)
 
