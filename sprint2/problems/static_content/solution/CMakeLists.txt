@@ -9,8 +9,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 include(${CMAKE_BINARY_DIR}/conan_paths.cmake OPTIONAL)
 
-# 1. Явно ищем скомпилированные компоненты json и system
-find_package(Boost REQUIRED COMPONENTS json system)
+find_package(Boost REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(game_server
     src/main.cpp
@@ -18,12 +18,12 @@ add_executable(game_server
     src/json_loader.cpp
     src/model.cpp
     src/request_handler.cpp
+    src/boost_json.cpp  
 )
 
 target_include_directories(game_server PRIVATE src)
 
-# 2. Линкуем найденные библиотеки
 target_link_libraries(game_server PRIVATE
-    Boost::json
-    Boost::system
+    Boost::boost
+    Threads::Threads  
 )
