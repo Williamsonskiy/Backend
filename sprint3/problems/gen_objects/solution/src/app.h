@@ -1,5 +1,6 @@
 #pragma once
 #include "model.h"
+#include <boost/json.hpp>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -11,6 +12,11 @@
 namespace app {
 
 using Token = std::string;
+
+// Структура для хранения JSON данных, не относящихся к игровой логике
+struct MapExtraData {
+    boost::json::array loot_types;
+};
 
 class PlayerTokens {
 public:
@@ -44,11 +50,17 @@ private:
 
 class App {
 public:
-    // Добавлен флаг auto_tick
-    explicit App(model::Game& game, bool auto_tick = false) 
-        : game_(game), auto_tick_(auto_tick) {}
+    explicit App(model::Game& game, bool auto_tick, std::unordered_map<std::string, MapExtraData> extra_data = {}) 
+        : game_(game), auto_tick_(auto_tick), extra_data_(std::move(extra_data)) {}
 
     bool IsAutoTick() const { return auto_tick_; }
+
+    const MapExtraData* GetMapExtraData(const std::string& map_id) const {
+        if (auto it = extra_data_.find(map_id); it != extra_data_.end()) {
+            return &it->second;
+        }
+        return nullptr;
+    }
 
     std::pair<Token, model::Dog::Id> JoinGame(const std::string& player_name, const model::Map::Id& map_id) {
         auto* session = game_.GetSession(map_id);
@@ -81,9 +93,10 @@ public:
 
 private:
     model::Game& game_;
-    bool auto_tick_; // Сохраняем флаг
+    bool auto_tick_;
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
+    std::unordered_map<std::string, MapExtraData> extra_data_;
 };
 
 } // namespace app
