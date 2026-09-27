@@ -1,9 +1,11 @@
-#include "htmldecode.h"
-//
 #include <iostream>
+#include <string>
+
+#include "htmldecode.h"
 
 int main() {
-    std::string str;
-    std::getline(std::cin, str);
-    std::cout << HtmlDecode(str) << std::endl;
+    std::string input;
+    std::getline(std::cin, input);
+
+    std::cout << HtmlDecode(input) << std::endl;
 }
