@@ -1,12 +1,10 @@
-FROM ubuntu:22.04 as build
+FROM gcc:11.3 as build
 
-RUN apt-get update --fix-missing && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
+RUN apt update && \
+    apt install -y \
       python3-pip \
       cmake \
     && \
-    rm -rf /var/lib/apt/lists/* && \
     pip3 install conan==1.*
 
 COPY conanfile.txt /app/
