@@ -3,12 +3,7 @@ cmake_minimum_required(VERSION 3.11)
 project(game_server CXX)
 set(CMAKE_CXX_STANDARD 20)
 
-if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo_multi.cmake)
-else()
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-endif()
-
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 
 find_package(Threads REQUIRED)
@@ -44,12 +39,14 @@ target_link_libraries(game_server PRIVATE
         pthread
 )
 
-# Тестовый исполняемый файл для Catch2
 add_executable(game_server_tests
+        src/model.h
+        src/model.cpp
         src/loot_generator.h
         src/loot_generator.cpp
+        src/tagged.h
         tests/main.cpp
         tests/loot_generator_tests.cpp
 )
 target_include_directories(game_server_tests PRIVATE src ${CONAN_INCLUDE_DIRS})
-target_link_libraries(game_server_tests PRIVATE ${CONAN_LIBS} Threads::Threads dl rt pthread)
+target_link_libraries(game_server_tests PRIVATE CONAN_PKG::catch2 CONAN_PKG::boost Threads::Threads dl rt pthread)
