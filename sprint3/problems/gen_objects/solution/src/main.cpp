@@ -126,11 +126,11 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        model::Game game = json_loader::LoadGame(args->config_file);
+        auto [game, extra_data] = json_loader::LoadGame(args->config_file);
         game.SetRandomizedSpawn(args->randomize_spawn_points);
 
         bool auto_tick = args->tick_period.has_value();
-        app::App app(game, auto_tick);
+        app::App app(game, auto_tick, std::move(extra_data));
 
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
