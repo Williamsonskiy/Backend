@@ -21,19 +21,12 @@ namespace {
     }
 }
 
-Point2D GameSession::GetSpawnPosition() const {
+Point2D GameSession::GetRandomRoadPosition() const {
     const auto& roads = map_->GetRoads();
     if (roads.empty()) {
         return {0.0, 0.0};
     }
-    
-    if (!random_spawn_) {
-        return {static_cast<double>(roads.front().GetStart().x), 
-                static_cast<double>(roads.front().GetStart().y)};
-    }
-    
     const auto& road = roads[GetRandomIndex(roads.size() - 1)];
-    
     if (road.IsHorizontal()) {
         double start_x = std::min(road.GetStart().x, road.GetEnd().x);
         double end_x = std::max(road.GetStart().x, road.GetEnd().x);
@@ -45,12 +38,26 @@ Point2D GameSession::GetSpawnPosition() const {
     }
 }
 
+Point2D GameSession::GetSpawnPosition() const {
+    if (!random_spawn_) {
+        const auto& roads = map_->GetRoads();
+        if (roads.empty()) {
+            return {0.0, 0.0};
+        }
+        return {static_cast<double>(roads.front().GetStart().x), 
+                static_cast<double>(roads.front().GetStart().y)};
+    }
+    return GetRandomRoadPosition();
+}
+
 Dog* GameSession::AddDog(const std::string& name) {
     dogs_.emplace_back(dog_id_counter_++, name, GetSpawnPosition());
     return &dogs_.back();
 }
 
-void GameSession::Tick(double delta_s) {
+void GameSession::Tick(std::chrono::milliseconds delta) {
+    double delta_s = delta.count() / 1000.0;
+    
     for (auto& dog : dogs_) {
         auto speed = dog.GetSpeed();
         if (speed.ux == 0.0 && speed.uy == 0.0) continue;
@@ -111,6 +118,16 @@ void GameSession::Tick(double delta_s) {
             }
         }
         dog.SetPosition(pos);
+    }
+    
+    unsigned generated_loot = loot_generator_.Generate(delta, lost_objects_.size(), dogs_.size());
+    if (generated_loot > 0 && map_->GetNumLootTypes() > 0) {
+        for (unsigned i = 0; i < generated_loot; ++i) {
+            size_t loot_type = GetRandomIndex(map_->GetNumLootTypes() - 1);
+            Point2D pos = GetRandomRoadPosition();
+            lost_objects_[lost_object_id_counter_] = LostObject{lost_object_id_counter_, loot_type, pos};
+            lost_object_id_counter_++;
+        }
     }
 }
 
@@ -205,7 +222,7 @@ GameSession* Game::AddSession(const Map::Id& map_id) {
     if (!map) return nullptr;
 
     const size_t index = sessions_.size();
-    sessions_.emplace_back(map, random_spawn_);
+    sessions_.emplace_back(map, random_spawn_, loot_period_, loot_probability_);
     try {
         map_id_to_session_index_[map_id] = index;
     } catch (...) {
@@ -216,9 +233,8 @@ GameSession* Game::AddSession(const Map::Id& map_id) {
 }
 
 void Game::Tick(std::chrono::milliseconds delta) {
-    double delta_s = delta.count() / 1000.0;
     for (auto& session : sessions_) {
-        session.Tick(delta_s);
+        session.Tick(delta);
     }
 }
 
