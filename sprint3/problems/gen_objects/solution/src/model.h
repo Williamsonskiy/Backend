@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include "tagged.h"
+#include "loot_generator.h"
 
 namespace model {
 
@@ -20,6 +21,12 @@ struct Offset { Dimension dx, dy; };
 
 struct Point2D { double x, y; };
 struct Speed2D { double ux, uy; };
+
+struct LostObject {
+    size_t id;
+    size_t type;
+    Point2D pos;
+};
 
 enum class Direction { NORTH, SOUTH, WEST, EAST };
 
@@ -79,8 +86,8 @@ public:
     using Buildings = std::vector<Building>;
     using Offices = std::vector<Office>;
 
-    Map(Id id, std::string name, double dog_speed = 1.0) noexcept 
-        : id_(std::move(id)), name_(std::move(name)), dog_speed_(dog_speed) {}
+    Map(Id id, std::string name, double dog_speed = 1.0, size_t num_loot_types = 0) noexcept 
+        : id_(std::move(id)), name_(std::move(name)), dog_speed_(dog_speed), num_loot_types_(num_loot_types) {}
         
     const Id& GetId() const noexcept { return id_; }
     const std::string& GetName() const noexcept { return name_; }
@@ -88,6 +95,7 @@ public:
     const Roads& GetRoads() const noexcept { return roads_; }
     const Offices& GetOffices() const noexcept { return offices_; }
     double GetDogSpeed() const noexcept { return dog_speed_; }
+    size_t GetNumLootTypes() const noexcept { return num_loot_types_; }
 
     void AddRoad(const Road& road);
     void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
@@ -102,6 +110,7 @@ private:
     Id id_;
     std::string name_;
     double dog_speed_;
+    size_t num_loot_types_;
     Roads roads_;
     Buildings buildings_;
     OfficeIdToIndex warehouse_id_to_index_;
@@ -155,20 +164,30 @@ private:
 
 class GameSession {
 public:
-    explicit GameSession(const Map* map, bool random_spawn) : map_(map), random_spawn_(random_spawn) {}
+    explicit GameSession(const Map* map, bool random_spawn, double loot_period, double loot_probability) 
+        : map_(map), random_spawn_(random_spawn),
+          loot_generator_(std::chrono::milliseconds(static_cast<int>((loot_period > 0 ? loot_period : 1.0) * 1000)), loot_probability) {}
+
     const Map* GetMap() const { return map_; }
     
     Dog* AddDog(const std::string& name);
-    void Tick(double delta_s);
+    void Tick(std::chrono::milliseconds delta);
     
     const std::deque<Dog>& GetDogs() const { return dogs_; }
+    const std::unordered_map<size_t, LostObject>& GetLostObjects() const { return lost_objects_; }
+
 private:
     Point2D GetSpawnPosition() const;
+    Point2D GetRandomRoadPosition() const;
 
     const Map* map_;
     bool random_spawn_;
     std::deque<Dog> dogs_;
     size_t dog_id_counter_ = 0;
+
+    loot_gen::LootGenerator loot_generator_;
+    std::unordered_map<size_t, LostObject> lost_objects_;
+    size_t lost_object_id_counter_ = 0;
 };
 
 class Game {
@@ -176,6 +195,10 @@ public:
     using Maps = std::vector<Map>;
 
     void SetRandomizedSpawn(bool random_spawn) { random_spawn_ = random_spawn; }
+    void SetLootParameters(double period, double probability) {
+        loot_period_ = period;
+        loot_probability_ = probability;
+    }
 
     void AddMap(Map map);
     const Maps& GetMaps() const noexcept { return maps_; }
@@ -197,6 +220,8 @@ private:
     std::vector<Map> maps_;
     MapIdToIndex map_id_to_index_;
     bool random_spawn_ = false;
+    double loot_period_ = 5.0;
+    double loot_probability_ = 0.5;
     
     std::deque<GameSession> sessions_;
     MapIdToIndex map_id_to_session_index_;
