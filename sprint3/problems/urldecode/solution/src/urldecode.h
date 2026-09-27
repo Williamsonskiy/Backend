@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 
 /*
 Возвращает URL-декодированное представление строки str.
