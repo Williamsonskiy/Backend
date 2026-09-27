@@ -21,7 +21,6 @@ std::string urlDecode(const std::string& encodedString);
 bool IsSubPath(fs::path path, fs::path base);
 std::string getContentType(const fs::path& filePath);
 
-// Вспомогательные функции для совместимости с Boost 1.78
 inline boost::beast::string_view ToBoost(std::string_view s) {
     return {s.data(), s.size()};
 }
@@ -47,7 +46,6 @@ public:
         std::string target(req.target().data(), req.target().size());
         target = urlDecode(target);
 
-        // --- Обработка API с гарантией последовательного выполнения через strand ---
         if (target.starts_with("/api/")) {
             auto handle = [this, req = std::move(req), send_copy = std::forward<Send>(send)]() mutable {
                 api_handler_.HandleRequest(std::move(req), std::move(send_copy));
@@ -55,7 +53,6 @@ public:
             return boost::asio::dispatch(api_strand_, std::move(handle));
         }
 
-        // --- Обработка статических файлов ---
         auto text_response = [&req](http::status status, std::string_view text, std::string_view content_type) {
             http::response<http::string_body> response(status, req.version());
             response.set(http::field::content_type, ToBoost(content_type));
