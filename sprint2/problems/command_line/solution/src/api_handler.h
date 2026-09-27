@@ -10,7 +10,6 @@ namespace http_handler {
 namespace http = boost::beast::http;
 namespace json = boost::json;
 
-// Вспомогательные функции
 inline boost::beast::string_view ToBoostStr(std::string_view s) {
     return {s.data(), s.size()};
 }
