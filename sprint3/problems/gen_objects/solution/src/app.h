@@ -8,12 +8,12 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <utility>
 
 namespace app {
 
 using Token = std::string;
 
-// Структура для хранения JSON данных, не относящихся к игровой логике
 struct MapExtraData {
     boost::json::array loot_types;
 };
@@ -93,7 +93,7 @@ public:
 
 private:
     model::Game& game_;
-    bool auto_tick_;
+    bool auto_tick_; 
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
     std::unordered_map<std::string, MapExtraData> extra_data_;
