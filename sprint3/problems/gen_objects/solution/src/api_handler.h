@@ -164,8 +164,10 @@ private:
             return send(MakeErrorResponse(http::status::unauthorized, "unknownToken", "Player token has not been found", req));
         }
 
+        auto* session = player->GetSession();
+        
         json::object players_obj;
-        for (const auto& dog : player->GetSession()->GetDogs()) {
+        for (const auto& dog : session->GetDogs()) {
             json::object dog_obj;
             dog_obj["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
             dog_obj["speed"] = json::array{dog.GetSpeed().ux, dog.GetSpeed().uy};
@@ -173,8 +175,17 @@ private:
             players_obj[std::to_string(dog.GetId())] = dog_obj;
         }
 
+        json::object lost_objects_obj;
+        for (const auto& [id, lost_object] : session->GetLostObjects()) {
+            json::object lo_obj;
+            lo_obj["type"] = lost_object.type;
+            lo_obj["pos"] = json::array{lost_object.pos.x, lost_object.pos.y};
+            lost_objects_obj[std::to_string(id)] = lo_obj;
+        }
+
         json::object root;
         root["players"] = players_obj;
+        root["lostObjects"] = lost_objects_obj;
 
         auto res = MakeJsonResponse(http::status::ok, json::serialize(root), req);
         send(std::move(res));
@@ -330,6 +341,12 @@ private:
                 {"offsetX", office.GetOffset().dx},
                 {"offsetY", office.GetOffset().dy}
             });
+        }
+
+        if (const auto* extra_data = app_.GetMapExtraData(map_id)) {
+            map_json["lootTypes"] = extra_data->loot_types;
+        } else {
+            map_json["lootTypes"] = json::array{};
         }
 
         send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
