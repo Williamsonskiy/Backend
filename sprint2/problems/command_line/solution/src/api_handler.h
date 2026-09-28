@@ -29,33 +29,33 @@ namespace endpoints {
 }
 
 namespace json_keys {
-    inline constexpr std::string_view USER_NAME = "userName";
-    inline constexpr std::string_view MAP_ID = "mapId";
-    inline constexpr std::string_view AUTH_TOKEN = "authToken";
-    inline constexpr std::string_view PLAYER_ID = "playerId";
-    inline constexpr std::string_view CODE = "code";
-    inline constexpr std::string_view MESSAGE = "message";
-    inline constexpr std::string_view POS = "pos";
-    inline constexpr std::string_view SPEED = "speed";
-    inline constexpr std::string_view DIR = "dir";
-    inline constexpr std::string_view PLAYERS = "players";
-    inline constexpr std::string_view MOVE = "move";
-    inline constexpr std::string_view TIME_DELTA = "timeDelta";
-    inline constexpr std::string_view ID = "id";
-    inline constexpr std::string_view NAME = "name";
-    inline constexpr std::string_view ROADS = "roads";
-    inline constexpr std::string_view BUILDINGS = "buildings";
-    inline constexpr std::string_view OFFICES = "offices";
-    inline constexpr std::string_view X0 = "x0";
-    inline constexpr std::string_view Y0 = "y0";
-    inline constexpr std::string_view X1 = "x1";
-    inline constexpr std::string_view Y1 = "y1";
-    inline constexpr std::string_view X = "x";
-    inline constexpr std::string_view Y = "y";
-    inline constexpr std::string_view W = "w";
-    inline constexpr std::string_view H = "h";
-    inline constexpr std::string_view OFFSET_X = "offsetX";
-    inline constexpr std::string_view OFFSET_Y = "offsetY";
+    inline constexpr json::string_view USER_NAME = "userName";
+    inline constexpr json::string_view MAP_ID = "mapId";
+    inline constexpr json::string_view AUTH_TOKEN = "authToken";
+    inline constexpr json::string_view PLAYER_ID = "playerId";
+    inline constexpr json::string_view CODE = "code";
+    inline constexpr json::string_view MESSAGE = "message";
+    inline constexpr json::string_view POS = "pos";
+    inline constexpr json::string_view SPEED = "speed";
+    inline constexpr json::string_view DIR = "dir";
+    inline constexpr json::string_view PLAYERS = "players";
+    inline constexpr json::string_view MOVE = "move";
+    inline constexpr json::string_view TIME_DELTA = "timeDelta";
+    inline constexpr json::string_view ID = "id";
+    inline constexpr json::string_view NAME = "name";
+    inline constexpr json::string_view ROADS = "roads";
+    inline constexpr json::string_view BUILDINGS = "buildings";
+    inline constexpr json::string_view OFFICES = "offices";
+    inline constexpr json::string_view X0 = "x0";
+    inline constexpr json::string_view Y0 = "y0";
+    inline constexpr json::string_view X1 = "x1";
+    inline constexpr json::string_view Y1 = "y1";
+    inline constexpr json::string_view X = "x";
+    inline constexpr json::string_view Y = "y";
+    inline constexpr json::string_view W = "w";
+    inline constexpr json::string_view H = "h";
+    inline constexpr json::string_view OFFSET_X = "offsetX";
+    inline constexpr json::string_view OFFSET_Y = "offsetY";
 }
 
 class ApiHandler {
