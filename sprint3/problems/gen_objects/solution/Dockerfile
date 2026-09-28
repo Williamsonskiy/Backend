@@ -1,6 +1,7 @@
 FROM ubuntu:22.04 as build
 
-RUN apt-get update --fix-missing && \
+RUN sed -i '/security/d' /etc/apt/sources.list && \
+    apt-get update --fix-missing && \
     apt-get install -y --no-install-recommends \
       build-essential \
       python3-pip \
