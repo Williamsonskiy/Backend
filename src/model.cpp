@@ -38,7 +38,7 @@ Point2D GameSession::GetSpawnPosition() const {
         double start_x = std::min(road.GetStart().x, road.GetEnd().x);
         double end_x = std::max(road.GetStart().x, road.GetEnd().x);
         return {GetRandomDouble(start_x, end_x), static_cast<double>(road.GetStart().y)};
-    }
+    } 
     
     double start_y = std::min(road.GetStart().y, road.GetEnd().y);
     double end_y = std::max(road.GetStart().y, road.GetEnd().y);
@@ -88,30 +88,18 @@ void GameSession::Tick(double delta_s) {
                 }
             }
             
-            if (horizontal) {
-                if (positive) { 
-                    if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                } else { 
-                    if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                }
-                if (target_x >= bound_x == positive) {
-                    pos.x = bound_x;
-                } else {
-                    pos.x = target_x;
-                    break;
-                }
-            } else {
-                if (positive) { 
-                    if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                } else { 
-                    if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                }
-                if (target_y >= bound_y == positive) {
-                    pos.y = bound_y;
-                } else {
-                    pos.y = target_y;
-                    break;
-                }
+            double& current_coord = horizontal ? pos.x : pos.y;
+            double target_coord = horizontal ? target_x : target_y;
+            double bound_coord = horizontal ? bound_x : bound_y;
+
+            if (positive) { 
+                if (bound_coord <= current_coord + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                if (target_coord <= bound_coord) { current_coord = target_coord; break; }
+                current_coord = bound_coord;
+            } else { 
+                if (bound_coord >= current_coord - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                if (target_coord >= bound_coord) { current_coord = target_coord; break; }
+                current_coord = bound_coord;
             }
         }
         dog.SetPosition(pos);
