@@ -12,28 +12,50 @@ find_package(Threads REQUIRED)
 
 add_definitions(-DBOOST_LOG_STATIC_LINK)
 
+# 1. Статическая библиотека игровой модели
+add_library(game_model STATIC
+    src/model.cpp
+    src/model.h
+    src/loot_generator.cpp
+    src/loot_generator.h
+    src/json_loader.cpp
+    src/json_loader.h
+    src/sdk.h
+    src/tagged.h
+)
+
+target_include_directories(game_model PUBLIC src)
+
+target_link_libraries(game_model PUBLIC
+    ${CONAN_LIBS}
+    Threads::Threads
+)
+
+# 2. Исполняемый файл сервера (только сетевой слой + main)
 add_executable(game_server
     src/main.cpp
     src/http_server.cpp
     src/http_server.h
-    src/sdk.h
-    src/model.h
-    src/model.cpp
-    src/tagged.h
     src/boost_json.cpp
-    src/json_loader.h
-    src/json_loader.cpp
     src/request_handler.cpp
     src/request_handler.h
     src/api_handler.h
     src/app.h
     src/ticker.h
     src/logger.h
-    src/loot_generator.h
-    src/loot_generator.cpp
 )
 
 target_link_libraries(game_server PRIVATE
-    ${CONAN_LIBS}
-    Threads::Threads
+    game_model
 )
+
+# 3. Исполняемый файл тестов (если тесты лежат в папке tests)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    file(GLOB TEST_SOURCES "tests/*.cpp")
+    if(TEST_SOURCES)
+        add_executable(game_server_tests ${TEST_SOURCES})
+        target_link_libraries(game_server_tests PRIVATE
+            game_model
+        )
+    endif()
+endif()
