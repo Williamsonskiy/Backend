@@ -38,11 +38,11 @@ Point2D GameSession::GetSpawnPosition() const {
         double start_x = std::min(road.GetStart().x, road.GetEnd().x);
         double end_x = std::max(road.GetStart().x, road.GetEnd().x);
         return {GetRandomDouble(start_x, end_x), static_cast<double>(road.GetStart().y)};
-    } else {
-        double start_y = std::min(road.GetStart().y, road.GetEnd().y);
-        double end_y = std::max(road.GetStart().y, road.GetEnd().y);
-        return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
     }
+    
+    double start_y = std::min(road.GetStart().y, road.GetEnd().y);
+    double end_y = std::max(road.GetStart().y, road.GetEnd().y);
+    return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
 }
 
 Dog* GameSession::AddDog(const std::string& name) {
@@ -91,22 +91,26 @@ void GameSession::Tick(double delta_s) {
             if (horizontal) {
                 if (positive) { 
                     if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_x <= bound_x) { pos.x = target_x; break; }
-                    pos.x = bound_x;
                 } else { 
                     if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_x >= bound_x) { pos.x = target_x; break; }
+                }
+                if (target_x >= bound_x == positive) {
                     pos.x = bound_x;
+                } else {
+                    pos.x = target_x;
+                    break;
                 }
             } else {
                 if (positive) { 
                     if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_y <= bound_y) { pos.y = target_y; break; }
-                    pos.y = bound_y;
                 } else { 
                     if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_y >= bound_y) { pos.y = target_y; break; }
+                }
+                if (target_y >= bound_y == positive) {
                     pos.y = bound_y;
+                } else {
+                    pos.y = target_y;
+                    break;
                 }
             }
         }
