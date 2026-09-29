@@ -20,6 +20,9 @@ add_library(game_model STATIC
     src/loot_generator.h
     src/json_loader.cpp
     src/json_loader.h
+    src/collision_detector.cpp
+    src/collision_detector.h
+    src/geom.h
     src/sdk.h
     src/tagged.h
 )
