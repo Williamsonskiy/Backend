@@ -86,6 +86,12 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
         loot_prob = prob_val.is_double() ? prob_val.as_double() : static_cast<double>(prob_val.as_int64());
     }
 
+    size_t default_bag_capacity = 3;
+    if (json_value.as_object().contains("defaultBagCapacity")) {
+        const auto& v = json_value.as_object().at("defaultBagCapacity");
+        default_bag_capacity = v.is_uint64() ? v.as_uint64() : static_cast<size_t>(v.as_int64());
+    }
+
     model::Game game;
     game.SetLootParameters(loot_period, loot_prob);
 
@@ -96,6 +102,12 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
         if (map_json.as_object().contains("dogSpeed")) {
             const auto& v = map_json.as_object().at("dogSpeed");
             dog_speed = v.is_double() ? v.as_double() : static_cast<double>(v.as_int64());
+        }
+
+        size_t bag_capacity = default_bag_capacity;
+        if (map_json.as_object().contains("bagCapacity")) {
+            const auto& v = map_json.as_object().at("bagCapacity");
+            bag_capacity = v.is_uint64() ? v.as_uint64() : static_cast<size_t>(v.as_int64());
         }
 
         size_t num_loot_types = 0;
@@ -109,7 +121,8 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
             model::Map::Id(std::string(map_json.at("id").as_string())),
             std::string(map_json.at("name").as_string()),
             dog_speed,
-            num_loot_types
+            num_loot_types,
+            bag_capacity
         );
 
         AddRoads(map_json, map);
