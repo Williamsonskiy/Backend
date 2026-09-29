@@ -178,6 +178,7 @@ private:
                 bag_arr.push_back(json::object{{"id", item.id}, {"type", item.type}});
             }
             dog_obj["bag"] = std::move(bag_arr);
+            dog_obj["score"] = dog.GetScore();
 
             players_obj[std::to_string(dog.GetId())] = dog_obj;
         }
