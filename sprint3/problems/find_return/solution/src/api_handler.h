@@ -172,6 +172,13 @@ private:
             dog_obj["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
             dog_obj["speed"] = json::array{dog.GetSpeed().ux, dog.GetSpeed().uy};
             dog_obj["dir"] = std::string(model::DirectionToString(dog.GetDirection()));
+            
+            json::array bag_arr;
+            for (const auto& item : dog.GetBag()) {
+                bag_arr.push_back(json::object{{"id", item.id}, {"type", item.type}});
+            }
+            dog_obj["bag"] = std::move(bag_arr);
+
             players_obj[std::to_string(dog.GetId())] = dog_obj;
         }
 
