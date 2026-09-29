@@ -2,6 +2,8 @@
 #include <stdexcept>
 #include <random>
 #include <algorithm>
+#include <unordered_set>
+#include "collision_detector.h"
 
 namespace model {
 using namespace std::literals;
@@ -55,69 +57,147 @@ Dog* GameSession::AddDog(const std::string& name) {
     return &dogs_.back();
 }
 
+// Провайдер для передачи данных в детектор коллизий
+class SessionItemGathererProvider : public collision_detector::ItemGathererProvider {
+public:
+    struct ItemInfo {
+        bool is_office;
+        size_t id; 
+        size_t type; 
+    };
+
+    SessionItemGathererProvider(const std::vector<collision_detector::Item>& items,
+                                const std::vector<collision_detector::Gatherer>& gatherers,
+                                const std::vector<ItemInfo>& item_infos,
+                                const std::vector<Dog*>& dog_ptrs)
+        : items_(items), gatherers_(gatherers), item_infos_(item_infos), dog_ptrs_(dog_ptrs) {}
+
+    size_t ItemsCount() const override { return items_.size(); }
+    collision_detector::Item GetItem(size_t idx) const override { return items_[idx]; }
+    size_t GatherersCount() const override { return gatherers_.size(); }
+    collision_detector::Gatherer GetGatherer(size_t idx) const override { return gatherers_[idx]; }
+
+    const ItemInfo& GetItemInfo(size_t idx) const { return item_infos_[idx]; }
+    Dog* GetDog(size_t idx) const { return dog_ptrs_[idx]; }
+
+private:
+    std::vector<collision_detector::Item> items_;
+    std::vector<collision_detector::Gatherer> gatherers_;
+    std::vector<ItemInfo> item_infos_;
+    std::vector<Dog*> dog_ptrs_;
+};
+
 void GameSession::Tick(std::chrono::milliseconds delta) {
     double delta_s = delta.count() / 1000.0;
     
+    std::vector<collision_detector::Gatherer> gatherers;
+    std::vector<Dog*> dog_ptrs;
+    
     for (auto& dog : dogs_) {
         auto speed = dog.GetSpeed();
-        if (speed.ux == 0.0 && speed.uy == 0.0) continue;
+        auto start_pos = dog.GetPosition();
         
-        auto pos = dog.GetPosition();
-        double target_x = pos.x + speed.ux * delta_s;
-        double target_y = pos.y + speed.uy * delta_s;
-        
-        while (true) {
-            double bound_x = pos.x;
-            double bound_y = pos.y;
+        Point2D pos = start_pos;
+        if (speed.ux != 0.0 || speed.uy != 0.0) {
+            double target_x = pos.x + speed.ux * delta_s;
+            double target_y = pos.y + speed.uy * delta_s;
             
-            bool horizontal = speed.ux != 0.0;
-            bool positive = horizontal ? (speed.ux > 0) : (speed.uy > 0);
-            
-            if (horizontal) {
-                bound_x = positive ? -1e9 : 1e9;
-            } else {
-                bound_y = positive ? -1e9 : 1e9;
-            }
-            
-            auto roads = map_->GetRoadsContaining(pos);
-            if (roads.empty()) {
-                dog.SetSpeed({0.0, 0.0});
-                break;
-            }
-            
-            for (const auto* road : roads) {
-                double min_x, max_x, min_y, max_y;
-                map_->GetRoadBounds(*road, min_x, max_x, min_y, max_y);
+            while (true) {
+                double bound_x = pos.x;
+                double bound_y = pos.y;
+                
+                bool horizontal = speed.ux != 0.0;
+                bool positive = horizontal ? (speed.ux > 0) : (speed.uy > 0);
+                
                 if (horizontal) {
-                    bound_x = positive ? std::max(bound_x, max_x) : std::min(bound_x, min_x);
+                    bound_x = positive ? -1e9 : 1e9;
                 } else {
-                    bound_y = positive ? std::max(bound_y, max_y) : std::min(bound_y, min_y);
+                    bound_y = positive ? -1e9 : 1e9;
+                }
+                
+                auto roads = map_->GetRoadsContaining(pos);
+                if (roads.empty()) {
+                    dog.SetSpeed({0.0, 0.0});
+                    break;
+                }
+                
+                for (const auto* road : roads) {
+                    double min_x, max_x, min_y, max_y;
+                    map_->GetRoadBounds(*road, min_x, max_x, min_y, max_y);
+                    if (horizontal) {
+                        bound_x = positive ? std::max(bound_x, max_x) : std::min(bound_x, min_x);
+                    } else {
+                        bound_y = positive ? std::max(bound_y, max_y) : std::min(bound_y, min_y);
+                    }
+                }
+                
+                if (horizontal) {
+                    if (positive) { 
+                        if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                        if (target_x <= bound_x) { pos.x = target_x; break; }
+                        pos.x = bound_x;
+                    } else { 
+                        if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                        if (target_x >= bound_x) { pos.x = target_x; break; }
+                        pos.x = bound_x;
+                    }
+                } else {
+                    if (positive) { 
+                        if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                        if (target_y <= bound_y) { pos.y = target_y; break; }
+                        pos.y = bound_y;
+                    } else { 
+                        if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
+                        if (target_y >= bound_y) { pos.y = target_y; break; }
+                        pos.y = bound_y;
+                    }
                 }
             }
+            dog.SetPosition(pos);
+        }
+        
+        // Добавляем собаку как Gatherer. Ширина собаки 0.6, радиус 0.3.
+        gatherers.push_back({geom::Point2D{start_pos.x, start_pos.y}, geom::Point2D{pos.x, pos.y}, 0.3});
+        dog_ptrs.push_back(&dog);
+    }
+    
+    std::vector<collision_detector::Item> items;
+    std::vector<SessionItemGathererProvider::ItemInfo> item_infos;
+    
+    // Предметы: ширина 0.0, радиус 0.0
+    for (const auto& [id, lo] : lost_objects_) {
+        items.push_back({geom::Point2D{lo.pos.x, lo.pos.y}, 0.0}); 
+        item_infos.push_back({false, lo.id, lo.type});
+    }
+    
+    // Базы: ширина 0.5, радиус 0.25
+    for (const auto& office : map_->GetOffices()) {
+        geom::Point2D pos{static_cast<double>(office.GetPosition().x), static_cast<double>(office.GetPosition().y)};
+        items.push_back({pos, 0.25}); 
+        item_infos.push_back({true, 0, 0}); 
+    }
+    
+    SessionItemGathererProvider provider(items, gatherers, item_infos, dog_ptrs);
+    auto events = collision_detector::FindGatherEvents(provider);
+    
+    std::unordered_set<size_t> collected_items;
+    size_t bag_capacity = map_->GetBagCapacity();
+    
+    for (const auto& event : events) {
+        Dog* dog = provider.GetDog(event.gatherer_id);
+        const auto& item_info = provider.GetItemInfo(event.item_id);
+        
+        if (item_info.is_office) {
+            dog->EmptyBag();
+        } else {
+            if (collected_items.contains(item_info.id)) continue;
             
-            if (horizontal) {
-                if (positive) { 
-                    if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_x <= bound_x) { pos.x = target_x; break; }
-                    pos.x = bound_x;
-                } else { 
-                    if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_x >= bound_x) { pos.x = target_x; break; }
-                    pos.x = bound_x;
-                }
-            } else {
-                if (positive) { 
-                    if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_y <= bound_y) { pos.y = target_y; break; }
-                    pos.y = bound_y;
-                } else { 
-                    if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                    if (target_y >= bound_y) { pos.y = target_y; break; }
-                    pos.y = bound_y;
-                }
+            if (dog->GetBag().size() < bag_capacity) {
+                dog->PutToBag({item_info.id, item_info.type});
+                collected_items.insert(item_info.id);
+                lost_objects_.erase(item_info.id);
             }
         }
-        dog.SetPosition(pos);
     }
     
     unsigned generated_loot = loot_generator_.Generate(delta, lost_objects_.size(), dogs_.size());
