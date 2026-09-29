@@ -156,7 +156,6 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
             dog.SetPosition(pos);
         }
         
-        // Добавляем собаку как Gatherer. Ширина собаки 0.6, радиус 0.3.
         gatherers.push_back({geom::Point2D{start_pos.x, start_pos.y}, geom::Point2D{pos.x, pos.y}, 0.3});
         dog_ptrs.push_back(&dog);
     }
@@ -164,13 +163,11 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
     std::vector<collision_detector::Item> items;
     std::vector<SessionItemGathererProvider::ItemInfo> item_infos;
     
-    // Предметы: ширина 0.0, радиус 0.0
     for (const auto& [id, lo] : lost_objects_) {
         items.push_back({geom::Point2D{lo.pos.x, lo.pos.y}, 0.0}); 
         item_infos.push_back({false, lo.id, lo.type});
     }
     
-    // Базы: ширина 0.5, радиус 0.25
     for (const auto& office : map_->GetOffices()) {
         geom::Point2D pos{static_cast<double>(office.GetPosition().x), static_cast<double>(office.GetPosition().y)};
         items.push_back({pos, 0.25}); 
@@ -188,6 +185,9 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
         const auto& item_info = provider.GetItemInfo(event.item_id);
         
         if (item_info.is_office) {
+            for (const auto& item : dog->GetBag()) {
+                dog->AddScore(map_->GetLootValue(item.type));
+            }
             dog->EmptyBag();
         } else {
             if (collected_items.contains(item_info.id)) continue;
