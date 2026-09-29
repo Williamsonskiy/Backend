@@ -6,7 +6,7 @@ namespace collision_detector {
 CollectionResult TryCollectPoint(geom::Point2D a, geom::Point2D b, geom::Point2D c) {
     // Проверим, что перемещение ненулевое.
     // Тут приходится использовать строгое равенство, а не приближённое,
-    // пскольку при сборе заказов придётся учитывать перемещение даже на небольшое
+    // поскольку при сборе заказов придётся учитывать перемещение даже на небольшое
     // расстояние.
     assert(b.x != a.x || b.y != a.y);
     const double u_x = c.x - a.x;
@@ -22,11 +22,41 @@ CollectionResult TryCollectPoint(geom::Point2D a, geom::Point2D b, geom::Point2D
     return CollectionResult(sq_distance, proj_ratio);
 }
 
-// В задании на разработку тестов реализовывать следующую функцию не нужно -
-// она будет линковаться извне.
-/*
 std::vector<GatheringEvent> FindGatherEvents(const ItemGathererProvider& provider) {
+    std::vector<GatheringEvent> detected_events;
+
+    for (size_t g = 0; g < provider.GatherersCount(); ++g) {
+        Gatherer gatherer = provider.GetGatherer(g);
+        
+        // Если собиратель не сдвинулся, он не может ничего собрать (и это убережет от assert в TryCollectPoint)
+        if (gatherer.start_pos.x == gatherer.end_pos.x && gatherer.start_pos.y == gatherer.end_pos.y) {
+            continue;
+        }
+        
+        for (size_t i = 0; i < provider.ItemsCount(); ++i) {
+            Item item = provider.GetItem(i);
+            
+            auto collect_result = TryCollectPoint(gatherer.start_pos, gatherer.end_pos, item.position);
+
+            // Столкновение засчитывается, если расстояние не превышает суммы радиусов предмета и собирателя
+            if (collect_result.IsCollected(gatherer.width + item.width)) {
+                detected_events.push_back(GatheringEvent{
+                    i,
+                    g,
+                    collect_result.sq_distance,
+                    collect_result.proj_ratio
+                });
+            }
+        }
+    }
+
+    // Сортируем все произошедшие события в хронологическом порядке (по времени)
+    std::sort(detected_events.begin(), detected_events.end(),
+              [](const GatheringEvent& l, const GatheringEvent& r) {
+                  return l.time < r.time;
+              });
+
+    return detected_events;
 }
-*/
 
 }  // namespace collision_detector
