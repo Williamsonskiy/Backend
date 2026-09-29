@@ -104,6 +104,9 @@ public:
     size_t GetNumLootTypes() const noexcept { return num_loot_types_; }
     size_t GetBagCapacity() const noexcept { return bag_capacity_; }
 
+    void AddLootValue(size_t value) { loot_values_.push_back(value); }
+    size_t GetLootValue(size_t type) const { return type < loot_values_.size() ? loot_values_[type] : 0; }
+
     void AddRoad(const Road& road);
     void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
     void AddOffice(Office office);
@@ -119,6 +122,7 @@ private:
     double dog_speed_;
     size_t num_loot_types_;
     size_t bag_capacity_;
+    std::vector<size_t> loot_values_;
     Roads roads_;
     Buildings buildings_;
     OfficeIdToIndex warehouse_id_to_index_;
@@ -132,7 +136,7 @@ class Dog {
 public:
     using Id = size_t;
     Dog(Id id, std::string name, Point2D pos) 
-        : id_(id), name_(std::move(name)), pos_(pos), speed_({0.0, 0.0}), dir_(Direction::NORTH) {}
+        : id_(id), name_(std::move(name)), pos_(pos), speed_({0.0, 0.0}), dir_(Direction::NORTH), score_(0) {}
         
     Id GetId() const { return id_; }
     const std::string& GetName() const { return name_; }
@@ -140,6 +144,7 @@ public:
     Speed2D GetSpeed() const { return speed_; }
     Direction GetDirection() const { return dir_; }
     const std::vector<FoundObject>& GetBag() const { return bag_; }
+    size_t GetScore() const { return score_; }
 
     void SetPosition(Point2D pos) { pos_ = pos; }
     void SetSpeed(Speed2D speed) { speed_ = speed; }
@@ -147,6 +152,7 @@ public:
     
     void PutToBag(FoundObject item) { bag_.push_back(item); }
     void EmptyBag() { bag_.clear(); }
+    void AddScore(size_t points) { score_ += points; }
 
     void Move(std::string_view move_cmd, double speed) {
         if (move_cmd == "U") {
@@ -173,6 +179,7 @@ private:
     Speed2D speed_;
     Direction dir_;
     std::vector<FoundObject> bag_;
+    size_t score_;
 };
 
 class GameSession {
