@@ -6,6 +6,7 @@
 #include <string_view>
 #include <chrono>
 #include <cmath>
+#include <map>
 #include "tagged.h"
 #include "loot_generator.h"
 
@@ -26,6 +27,11 @@ struct LostObject {
     size_t id;
     size_t type;
     Point2D pos;
+};
+
+struct FoundObject {
+    size_t id;
+    size_t type;
 };
 
 enum class Direction { NORTH, SOUTH, WEST, EAST };
@@ -86,8 +92,8 @@ public:
     using Buildings = std::vector<Building>;
     using Offices = std::vector<Office>;
 
-    Map(Id id, std::string name, double dog_speed = 1.0, size_t num_loot_types = 0) noexcept 
-        : id_(std::move(id)), name_(std::move(name)), dog_speed_(dog_speed), num_loot_types_(num_loot_types) {}
+    Map(Id id, std::string name, double dog_speed = 1.0, size_t num_loot_types = 0, size_t bag_capacity = 3) noexcept 
+        : id_(std::move(id)), name_(std::move(name)), dog_speed_(dog_speed), num_loot_types_(num_loot_types), bag_capacity_(bag_capacity) {}
         
     const Id& GetId() const noexcept { return id_; }
     const std::string& GetName() const noexcept { return name_; }
@@ -96,6 +102,7 @@ public:
     const Offices& GetOffices() const noexcept { return offices_; }
     double GetDogSpeed() const noexcept { return dog_speed_; }
     size_t GetNumLootTypes() const noexcept { return num_loot_types_; }
+    size_t GetBagCapacity() const noexcept { return bag_capacity_; }
 
     void AddRoad(const Road& road);
     void AddBuilding(const Building& building) { buildings_.emplace_back(building); }
@@ -111,6 +118,7 @@ private:
     std::string name_;
     double dog_speed_;
     size_t num_loot_types_;
+    size_t bag_capacity_;
     Roads roads_;
     Buildings buildings_;
     OfficeIdToIndex warehouse_id_to_index_;
@@ -131,10 +139,14 @@ public:
     Point2D GetPosition() const { return pos_; }
     Speed2D GetSpeed() const { return speed_; }
     Direction GetDirection() const { return dir_; }
+    const std::vector<FoundObject>& GetBag() const { return bag_; }
 
     void SetPosition(Point2D pos) { pos_ = pos; }
     void SetSpeed(Speed2D speed) { speed_ = speed; }
     void SetDirection(Direction dir) { dir_ = dir; }
+    
+    void PutToBag(FoundObject item) { bag_.push_back(item); }
+    void EmptyBag() { bag_.clear(); }
 
     void Move(std::string_view move_cmd, double speed) {
         if (move_cmd == "U") {
@@ -160,6 +172,7 @@ private:
     Point2D pos_;
     Speed2D speed_;
     Direction dir_;
+    std::vector<FoundObject> bag_;
 };
 
 class GameSession {
@@ -174,7 +187,7 @@ public:
     void Tick(std::chrono::milliseconds delta);
     
     const std::deque<Dog>& GetDogs() const { return dogs_; }
-    const std::unordered_map<size_t, LostObject>& GetLostObjects() const { return lost_objects_; }
+    const std::map<size_t, LostObject>& GetLostObjects() const { return lost_objects_; }
 
 private:
     Point2D GetSpawnPosition() const;
@@ -186,7 +199,7 @@ private:
     size_t dog_id_counter_ = 0;
 
     loot_gen::LootGenerator loot_generator_;
-    std::unordered_map<size_t, LostObject> lost_objects_;
+    std::map<size_t, LostObject> lost_objects_;
     size_t lost_object_id_counter_ = 0;
 };
 
