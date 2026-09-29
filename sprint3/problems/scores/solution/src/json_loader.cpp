@@ -111,10 +111,20 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
         }
 
         size_t num_loot_types = 0;
+        std::vector<size_t> loot_values;
         if (map_json.as_object().contains("lootTypes")) {
             const auto& loot_types = map_json.as_object().at("lootTypes").as_array();
             num_loot_types = loot_types.size();
             extra_data[std::string(map_json.at("id").as_string())].loot_types = loot_types;
+            
+            for (const auto& lt : loot_types) {
+                size_t value = 0;
+                if (lt.as_object().contains("value")) {
+                    const auto& v = lt.as_object().at("value");
+                    value = v.is_uint64() ? v.as_uint64() : static_cast<size_t>(v.as_int64());
+                }
+                loot_values.push_back(value);
+            }
         }
 
         model::Map map(
@@ -124,6 +134,10 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
             num_loot_types,
             bag_capacity
         );
+
+        for (size_t val : loot_values) {
+            map.AddLootValue(val);
+        }
 
         AddRoads(map_json, map);
         AddBuildings(map_json, map);
