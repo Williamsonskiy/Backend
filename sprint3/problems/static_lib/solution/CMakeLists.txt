@@ -12,7 +12,6 @@ find_package(Threads REQUIRED)
 
 add_definitions(-DBOOST_LOG_STATIC_LINK)
 
-# 1. Статическая библиотека игровой модели
 add_library(game_model STATIC
     src/model.cpp
     src/model.h
@@ -31,7 +30,6 @@ target_link_libraries(game_model PUBLIC
     Threads::Threads
 )
 
-# 2. Исполняемый файл сервера (только сетевой слой + main)
 add_executable(game_server
     src/main.cpp
     src/http_server.cpp
@@ -49,7 +47,6 @@ target_link_libraries(game_server PRIVATE
     game_model
 )
 
-# 3. Исполняемый файл тестов (если тесты лежат в папке tests)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests")
     file(GLOB TEST_SOURCES "tests/*.cpp")
     if(TEST_SOURCES)
