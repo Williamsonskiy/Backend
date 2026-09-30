@@ -57,7 +57,6 @@ Dog* GameSession::AddDog(const std::string& name) {
     return &dogs_.back();
 }
 
-// Провайдер для передачи данных в детектор коллизий
 class SessionItemGathererProvider : public collision_detector::ItemGathererProvider {
 public:
     struct ItemInfo {
