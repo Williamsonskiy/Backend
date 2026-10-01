@@ -3,5 +3,4 @@ libpqxx/7.8.1
 boost/1.82.0
 
 [generators]
-CMakeDeps
-CMakeToolchain
+cmake_find_package
