@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <chrono>
 #include <utility>
+#include <functional>
 
 namespace app {
 
@@ -50,6 +51,8 @@ private:
 
 class App {
 public:
+    using SaveStateCallback = std::function<void()>;
+
     explicit App(model::Game& game, bool auto_tick, std::unordered_map<std::string, MapExtraData> extra_data = {}) 
         : game_(game), auto_tick_(auto_tick), extra_data_(std::move(extra_data)) {}
 
@@ -85,11 +88,44 @@ public:
         return nullptr;
     }
 
-    void Tick(std::chrono::milliseconds delta) {
-        game_.Tick(delta);
+    const std::unordered_map<Token, std::unique_ptr<Player>>& GetTokens() const {
+        return player_tokens_;
     }
 
+    model::Game& GetGameMutable() { return game_; }
     const model::Game& GetGame() const { return game_; }
+
+    void RestoreToken(const std::string& token, const model::Map::Id& map_id, size_t dog_id) {
+        auto* session = game_.GetSession(map_id);
+        if (!session) return;
+        auto* dog = session->GetDogById(dog_id);
+        if (!dog) return;
+        
+        auto player = std::make_unique<Player>(session, dog);
+        player_tokens_[token] = std::move(player);
+    }
+
+    void SetSaveStateCallback(SaveStateCallback cb) {
+        save_state_callback_ = std::move(cb);
+    }
+
+    void SetSavePeriod(int ms) {
+        save_period_ = std::chrono::milliseconds(ms);
+    }
+
+    void Tick(std::chrono::milliseconds delta) {
+        game_.Tick(delta);
+
+        if (save_period_.count() > 0) {
+            time_since_save_ += delta;
+            if (time_since_save_ >= save_period_) {
+                if (save_state_callback_) {
+                    save_state_callback_();
+                }
+                time_since_save_ = std::chrono::milliseconds{0};
+            }
+        }
+    }
 
 private:
     model::Game& game_;
@@ -97,6 +133,10 @@ private:
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
     std::unordered_map<std::string, MapExtraData> extra_data_;
+
+    SaveStateCallback save_state_callback_;
+    std::chrono::milliseconds save_period_{0};
+    std::chrono::milliseconds time_since_save_{0};
 };
 
 } // namespace app
