@@ -7,9 +7,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup(TARGETS)
 
+find_package(Threads REQUIRED)
+
 add_executable(book_manager main.cpp)
 
 target_link_libraries(book_manager PRIVATE 
     CONAN_PKG::boost 
     CONAN_PKG::libpqxx
+    Threads::Threads
 )
