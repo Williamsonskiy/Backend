@@ -1,4 +1,3 @@
---- START OF FILE src/model.h ---
 #pragma once
 #include <string>
 #include <unordered_map>
@@ -281,4 +280,3 @@ private:
 };
 
 }  // namespace model
---- END OF FILE ---
