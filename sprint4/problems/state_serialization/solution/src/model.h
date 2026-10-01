@@ -1,3 +1,4 @@
+--- START OF FILE src/model.h ---
 #pragma once
 #include <string>
 #include <unordered_map>
@@ -196,6 +197,28 @@ public:
     const std::deque<Dog>& GetDogs() const { return dogs_; }
     const std::map<size_t, LostObject>& GetLostObjects() const { return lost_objects_; }
 
+    Dog* GetDogById(size_t id) {
+        for (auto& dog : dogs_) {
+            if (dog.GetId() == id) return &dog;
+        }
+        return nullptr;
+    }
+
+    void LoadState(std::deque<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
+        dogs_ = std::move(dogs);
+        lost_objects_ = std::move(lost_objects);
+        for (const auto& dog : dogs_) {
+            if (dog.GetId() >= dog_id_counter_) {
+                dog_id_counter_ = dog.GetId() + 1;
+            }
+        }
+        for (const auto& [id, obj] : lost_objects_) {
+            if (id >= lost_object_id_counter_) {
+                lost_object_id_counter_ = id + 1;
+            }
+        }
+    }
+
 private:
     Point2D GetSpawnPosition() const;
     Point2D GetRandomRoadPosition() const;
@@ -233,6 +256,16 @@ public:
     
     void Tick(std::chrono::milliseconds delta);
 
+    void LoadSession(const Map::Id& map_id, std::deque<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
+        auto* session = GetSession(map_id);
+        if (!session) {
+            session = AddSession(map_id);
+        }
+        if (session) {
+            session->LoadState(std::move(dogs), std::move(lost_objects));
+        }
+    }
+
 private:
     using MapIdHasher = util::TaggedHasher<Map::Id>;
     using MapIdToIndex = std::unordered_map<Map::Id, size_t, MapIdHasher>;
@@ -248,3 +281,4 @@ private:
 };
 
 }  // namespace model
+--- END OF FILE ---
