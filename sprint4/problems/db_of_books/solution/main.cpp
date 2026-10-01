@@ -2,7 +2,7 @@
 #include <string>
 #include <optional>
 #include <pqxx/pqxx>
-#include <boost/json.h>
+#include <boost/json.hpp>
 
 using namespace std;
 namespace json = boost::json;
