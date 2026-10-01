@@ -36,19 +36,19 @@ int main(int argc, const char* argv[]) {
             }
             
             json::value jv = json::parse(line);
-            string action = jv.as_object().at("action").as_string().c_str();
+            string action = string(jv.as_object().at("action").as_string());
 
             if (action == "exit") {
                 break;
             } else if (action == "add_book") {
                 auto& payload = jv.as_object().at("payload").as_object();
-                string title = payload.at("title").as_string().c_str();
-                string author = payload.at("author").as_string().c_str();
+                string title = string(payload.at("title").as_string());
+                string author = string(payload.at("author").as_string());
                 int year = payload.at("year").as_int64();
                 
                 optional<string> isbn;
                 if (!payload.at("ISBN").is_null()) {
-                    isbn = payload.at("ISBN").as_string().c_str();
+                    isbn = string(payload.at("ISBN").as_string());
                 }
 
                 bool success = false;
@@ -60,7 +60,7 @@ int main(int argc, const char* argv[]) {
                     );
                     w.commit();
                     success = true;
-                } catch (const pqxx::sql_error&) {
+                } catch (const std::exception&) {
                     success = false;
                 }
                 
@@ -89,7 +89,7 @@ int main(int argc, const char* argv[]) {
                 cout << json::serialize(arr) << "\n" << flush;
             }
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return 1;
     }
     
