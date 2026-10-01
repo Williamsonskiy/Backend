@@ -44,6 +44,7 @@ add_executable(game_server
     src/app.h
     src/ticker.h
     src/logger.h
+    src/serialization.h
 )
 
 target_link_libraries(game_server PRIVATE
