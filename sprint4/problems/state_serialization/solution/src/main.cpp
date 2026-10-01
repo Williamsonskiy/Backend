@@ -7,12 +7,14 @@
 #include <thread>
 #include <optional>
 #include <vector>
+#include <filesystem>
 #include "json_loader.h"
 #include "request_handler.h"
 #include "app.h"
 #include "logger.h"
 #include "http_server.h"
 #include "ticker.h"
+#include "serialization.h"
 
 namespace net = boost::asio;
 namespace sys = boost::system;
@@ -38,6 +40,8 @@ struct Args {
     std::string www_root;
     std::optional<int> tick_period;
     bool randomize_spawn_points = false;
+    std::string state_file;
+    std::optional<int> save_state_period;
 };
 
 std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
@@ -51,7 +55,9 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
         ("tick-period,t", po::value<int>(), "set tick period")
         ("config-file,c", po::value<std::string>(), "set config file path")
         ("www-root,w", po::value<std::string>(), "set static files root")
-        ("randomize-spawn-points", po::bool_switch(&args.randomize_spawn_points), "spawn dogs at random positions");
+        ("randomize-spawn-points", po::bool_switch(&args.randomize_spawn_points), "spawn dogs at random positions")
+        ("state-file", po::value<std::string>(), "set state file path")
+        ("save-state-period", po::value<int>(), "set state save period");
 
     po::options_description hidden_desc("Hidden options");
     hidden_desc.add_options()
@@ -84,6 +90,12 @@ std::optional<Args> ParseCommandLine(int argc, char* argv[]) {
     }
     if (vm.contains("tick-period")) {
         args.tick_period = vm["tick-period"].as<int>();
+    }
+    if (vm.contains("state-file")) {
+        args.state_file = vm["state-file"].as<std::string>();
+    }
+    if (vm.contains("save-state-period")) {
+        args.save_state_period = vm["save-state-period"].as<int>();
     }
 
     if (vm.contains("positional")) {
@@ -132,6 +144,26 @@ int main(int argc, char* argv[]) {
         bool auto_tick = args->tick_period.has_value();
         app::App app(game, auto_tick, std::move(extra_data));
 
+        if (!args->state_file.empty()) {
+            if (std::filesystem::exists(args->state_file)) {
+                try {
+                    serialization::LoadState(app, args->state_file);
+                } catch (const std::exception& e) {
+                    std::string msg = "Failed to load state: ";
+                    msg += e.what();
+                    std::cerr << msg << std::endl;
+                    logger::LogServerExited(EXIT_FAILURE, msg);
+                    return EXIT_FAILURE;
+                }
+            }
+            app.SetSaveStateCallback([&app, state_file = args->state_file]() {
+                serialization::SaveState(app, state_file);
+            });
+            if (args->save_state_period) {
+                app.SetSavePeriod(*args->save_state_period);
+            }
+        }
+
         const unsigned num_threads = std::thread::hardware_concurrency();
         net::io_context ioc(num_threads);
 
@@ -168,6 +200,10 @@ int main(int argc, char* argv[]) {
         RunWorkers(num_threads, [&ioc] {
             ioc.run();
         });
+
+        if (!args->state_file.empty()) {
+            serialization::SaveState(app, args->state_file);
+        }
 
         logger::LogServerExited(0);
     } catch (const std::exception& ex) {
