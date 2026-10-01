@@ -1,24 +1,22 @@
 #include <iostream>
 #include <string>
 #include <optional>
+
 #include <pqxx/pqxx>
-#include <boost/json.hpp>
+#include <boost/json/src.hpp> 
 
 using namespace std::literals;
 namespace json = boost::json;
 
 int main(int argc, char* argv[]) {
-    // Подключение к БД передается первым параметром командной строки
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <db_connection_string>\n";
         return EXIT_FAILURE;
     }
 
     try {
-        // Устанавливаем соединение с базой данных
         pqxx::connection conn{argv[1]};
 
-        // Создаем таблицу books, если ее еще нет
         {
             pqxx::work w(conn);
             w.exec(R"(
@@ -34,7 +32,6 @@ int main(int argc, char* argv[]) {
         }
 
         std::string line;
-        // Читаем запросы из стандартного ввода построчно
         while (std::getline(std::cin, line)) {
             if (line.empty()) continue;
 
@@ -42,7 +39,7 @@ int main(int argc, char* argv[]) {
             try {
                 jv = json::parse(line);
             } catch (const std::exception&) {
-                continue; // Игнорируем некорректный JSON
+                continue;
             }
 
             const auto& obj = jv.as_object();
@@ -62,24 +59,20 @@ int main(int argc, char* argv[]) {
                 }
 
                 try {
-                    // Используем транзакцию записи (work) и подготовленные параметры
-                    // для защиты от SQL-инъекций. Если isbn == std::nullopt, pqxx вставит NULL.
                     pqxx::work w(conn);
                     w.exec_params(
                         "INSERT INTO books (title, author, year, ISBN) VALUES ($1, $2, $3, $4)",
                         title, author, year, isbn
                     );
                     w.commit();
-                    std::cout << json::serialize(json::value{{"result", true}}) << "\n";
+                    std::cout << json::serialize(json::value{{"result", true}}) << std::endl;
+                } catch (const pqxx::sql_error&) {
+                    std::cout << json::serialize(json::value{{"result", false}}) << std::endl;
                 } catch (const std::exception&) {
-                    // Перехват исключения (например, из-за уникальности ISBN - pqxx::sql_error)
-                    std::cout << json::serialize(json::value{{"result", false}}) << "\n";
+                    std::cout << json::serialize(json::value{{"result", false}}) << std::endl;
                 }
             } else if (action == "all_books") {
-                // Используем транзакцию чтения (read_transaction)
                 pqxx::read_transaction r(conn);
-                
-                // Выполняем запрос с требуемой сортировкой
                 auto res = r.exec(
                     "SELECT id, title, author, year, ISBN FROM books "
                     "ORDER BY year DESC, title ASC, author ASC, ISBN ASC"
@@ -100,14 +93,11 @@ int main(int argc, char* argv[]) {
                     }
                     arr.push_back(book);
                 }
-                std::cout << json::serialize(arr) << "\n";
+                std::cout << json::serialize(arr) << std::endl;
             }
-            
-            // Сброс буфера вывода, чтобы тестер сразу увидел ответ
-            std::cout << std::flush;
         }
     } catch (const std::exception& e) {
-        std::cerr << "Database Exception: " << e.what() << "\n";
+        std::cerr << "Exception: " << e.what() << "\n";
         return EXIT_FAILURE;
     }
 
