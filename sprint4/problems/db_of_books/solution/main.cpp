@@ -54,17 +54,10 @@ int main(int argc, const char* argv[]) {
                 bool success = false;
                 try {
                     pqxx::work w(conn);
-                    if (isbn) {
-                        w.exec_params(
-                            "INSERT INTO books (title, author, year, ISBN) VALUES ($1, $2, $3, $4)",
-                            title, author, year, *isbn
-                        );
-                    } else {
-                        w.exec_params(
-                            "INSERT INTO books (title, author, year, ISBN) VALUES ($1, $2, $3, NULL)",
-                            title, author, year
-                        );
-                    }
+                    w.exec_params(
+                        "INSERT INTO books (title, author, year, ISBN) VALUES ($1, $2, $3, $4)",
+                        title, author, year, isbn
+                    );
                     w.commit();
                     success = true;
                 } catch (const pqxx::sql_error&) {
