@@ -1,13 +1,16 @@
+// src/domain/author.h
 #pragma once
 #include <string>
+#include <vector>
 
 #include "../util/tagged_uuid.h"
+#include "book.h"
 
 namespace domain {
 
 namespace detail {
 struct AuthorTag {};
-}  // namespace detail
+}  
 
 using AuthorId = util::TaggedUUID<detail::AuthorTag>;
 
@@ -34,6 +37,11 @@ private:
 class AuthorRepository {
 public:
     virtual void Save(const Author& author) = 0;
+    virtual std::vector<Author> GetAuthors() const = 0;
+
+    virtual void SaveBook(const Book& book) = 0;
+    virtual std::vector<Book> GetBooks() const = 0;
+    virtual std::vector<Book> GetAuthorBooks(const std::string& author_id) const = 0;
 
 protected:
     ~AuthorRepository() = default;
