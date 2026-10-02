@@ -79,10 +79,8 @@ public:
     }
 
     Player* GetPlayerByToken(const Token& token) const {
-        if (auto it = player_tokens_.find(token); it != player_tokens_.end()) {
-            return it->second.get();
-        }
-        return nullptr;
+        auto it = player_tokens_.find(token);
+        return (it != player_tokens_.end()) ? it->second.get() : nullptr;
     }
 
     void Tick(std::chrono::milliseconds delta) {
