@@ -1,0 +1,155 @@
+#include "json_loader.h"
+#include <iostream>
+
+namespace json_loader {
+
+void AddRoads(const boost::json::value& map_json, model::Map& map) {
+    if (auto* roads_arr = map_json.as_object().if_contains("roads")) {
+        for (const auto& road_json : roads_arr->as_array()) {
+            if (road_json.as_object().if_contains("x1")) {
+                map.AddRoad(model::Road(
+                    model::Road::HORIZONTAL,
+                    {
+                        model::Coord(road_json.at("x0").as_int64()), model::Coord(road_json.at("y0").as_int64())},
+                        model::Coord(road_json.at("x1").as_int64())
+                    ));
+            } else if (road_json.as_object().if_contains("y1")) {
+                map.AddRoad(model::Road(
+                    model::Road::VERTICAL,
+                    {
+                        model::Coord(road_json.at("x0").as_int64()), model::Coord(road_json.at("y0").as_int64())},
+                        model::Coord(road_json.at("y1").as_int64())
+                    ));
+            }
+        }
+    }
+}
+
+void AddBuildings(const boost::json::value& map_json, model::Map& map) {
+    if (auto* bld_arr = map_json.as_object().if_contains("buildings")) {
+        for (const auto& building_json : bld_arr->as_array()) {
+            model::Point position{
+                model::Coord(building_json.at("x").as_int64()),
+                model::Coord(building_json.at("y").as_int64())
+            };
+
+            model::Size s{
+                model::Dimension(building_json.at("w").as_int64()),
+                model::Dimension(building_json.at("h").as_int64())
+            };
+
+            model::Rectangle bounds{position, s};
+            map.AddBuilding(model::Building(bounds));
+        }
+    }
+}
+
+void AddOffices(const boost::json::value& map_json, model::Map& map) {
+    if (auto* off_arr = map_json.as_object().if_contains("offices")) {
+        for (const auto& office_json : off_arr->as_array()) {
+            map.AddOffice(model::Office(
+                model::Office::Id(std::string(office_json.at("id").as_string())),
+                {model::Coord(office_json.at("x").as_int64()), model::Coord(office_json.at("y").as_int64())}, 
+                {model::Dimension(office_json.at("offsetX").as_int64()), model::Dimension(office_json.at("offsetY").as_int64())}
+            ));
+        }
+    }
+}
+
+std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadGame(const std::filesystem::path& json_path) {
+
+    std::ifstream file(json_path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Не удалось открыть файл: " + json_path.string());
+    }
+
+    std::stringstream ss;
+    ss << file.rdbuf();
+    std::string json_string = ss.str();
+    file.close();
+
+    boost::json::value json_value;
+    try {
+        json_value = boost::json::parse(json_string);
+    } catch (...) {
+        std::cerr << "Unknown exception during JSON parsing" << std::endl;
+    }
+
+    double default_dog_speed = 1.0;
+    if (auto* v = json_value.as_object().if_contains("defaultDogSpeed")) {
+        default_dog_speed = v->is_double() ? v->as_double() : static_cast<double>(v->as_int64());
+    }
+
+    double loot_period = 5.0;
+    double loot_prob = 0.5;
+    if (auto* config_val = json_value.as_object().if_contains("lootGeneratorConfig")) {
+        const auto& config = config_val->as_object();
+        const auto& period_val = config.at("period");
+        loot_period = period_val.is_double() ? period_val.as_double() : static_cast<double>(period_val.as_int64());
+        
+        const auto& prob_val = config.at("probability");
+        loot_prob = prob_val.is_double() ? prob_val.as_double() : static_cast<double>(prob_val.as_int64());
+    }
+
+    size_t default_bag_capacity = 3;
+    if (auto* v = json_value.as_object().if_contains("defaultBagCapacity")) {
+        default_bag_capacity = v->is_uint64() ? v->as_uint64() : static_cast<size_t>(v->as_int64());
+    }
+
+    model::Game game;
+    game.SetLootParameters(loot_period, loot_prob);
+
+    std::unordered_map<std::string, app::MapExtraData> extra_data;
+
+    if (auto* maps_arr = json_value.as_object().if_contains("maps")) {
+        for (const auto& map_json : maps_arr->as_array()) {
+            double dog_speed = default_dog_speed;
+            if (auto* v = map_json.as_object().if_contains("dogSpeed")) {
+                dog_speed = v->is_double() ? v->as_double() : static_cast<double>(v->as_int64());
+            }
+
+            size_t bag_capacity = default_bag_capacity;
+            if (auto* v = map_json.as_object().if_contains("bagCapacity")) {
+                bag_capacity = v->is_uint64() ? v->as_uint64() : static_cast<size_t>(v->as_int64());
+            }
+
+            size_t num_loot_types = 0;
+            std::vector<size_t> loot_values;
+            if (auto* lt_val = map_json.as_object().if_contains("lootTypes")) {
+                const auto& loot_types = lt_val->as_array();
+                num_loot_types = loot_types.size();
+                extra_data[std::string(map_json.at("id").as_string())].loot_types = loot_types;
+                
+                for (const auto& lt : loot_types) {
+                    size_t value = 0;
+                    if (auto* v = lt.as_object().if_contains("value")) {
+                        value = v->is_uint64() ? v->as_uint64() : static_cast<size_t>(v->as_int64());
+                    }
+                    loot_values.push_back(value);
+                }
+            }
+
+            model::Map map(
+                model::Map::Id(std::string(map_json.at("id").as_string())),
+                std::string(map_json.at("name").as_string()),
+                dog_speed,
+                num_loot_types,
+                bag_capacity
+            );
+
+            for (size_t val : loot_values) {
+                map.AddLootValue(val);
+            }
+
+            AddRoads(map_json, map);
+            AddBuildings(map_json, map);
+            AddOffices(map_json, map);
+
+            game.AddMap(std::move(map));
+        }
+    }
+
+    return {std::move(game), std::move(extra_data)};
+}
+
+}  // namespace json_loader
