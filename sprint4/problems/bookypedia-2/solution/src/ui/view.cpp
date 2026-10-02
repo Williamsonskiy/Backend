@@ -118,7 +118,7 @@ bool View::DeleteAuthor(std::istream& cmd_input) const {
                 output_ << "Failed to delete author" << std::endl;
                 return true;
             }
-            author_id = author->id;
+            author_id = author->GetId().ToString();
         }
         use_cases_.DeleteAuthor(author_id);
     } catch (...) {
@@ -147,7 +147,7 @@ bool View::EditAuthor(std::istream& cmd_input) const {
                 output_ << "Failed to edit author" << std::endl;
                 return true;
             }
-            author_id = author->id;
+            author_id = author->GetId().ToString();
         }
         
         output_ << "Enter new name:" << std::endl;
@@ -190,7 +190,7 @@ bool View::AddBook(std::istream& cmd_input) const {
         } else {
             auto author = use_cases_.GetAuthorByName(author_input);
             if (author) {
-                author_id = author->id;
+                author_id = author->GetId().ToString();
             } else {
                 output_ << "No author found. Do you want to add " << author_input << " (y/n)?" << std::endl;
                 std::string ans;
