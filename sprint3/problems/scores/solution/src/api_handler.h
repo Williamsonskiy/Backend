@@ -56,26 +56,26 @@ public:
 private:
     app::App& app_;
     
-    static constexpr std::string_view ENDPOINT_JOIN = "/api/v1/game/join";
-    static constexpr std::string_view ENDPOINT_PLAYERS = "/api/v1/game/players";
-    static constexpr std::string_view ENDPOINT_STATE = "/api/v1/game/state";
-    static constexpr std::string_view ENDPOINT_ACTION = "/api/v1/game/player/action";
-    static constexpr std::string_view ENDPOINT_TICK = "/api/v1/game/tick";
-    static constexpr std::string_view ENDPOINT_MAPS = "/api/v1/maps";
-    static constexpr std::string_view ENDPOINT_MAPS_PREFIX = "/api/v1/maps/";
+    static constexpr const char* ENDPOINT_JOIN = "/api/v1/game/join";
+    static constexpr const char* ENDPOINT_PLAYERS = "/api/v1/game/players";
+    static constexpr const char* ENDPOINT_STATE = "/api/v1/game/state";
+    static constexpr const char* ENDPOINT_ACTION = "/api/v1/game/player/action";
+    static constexpr const char* ENDPOINT_TICK = "/api/v1/game/tick";
+    static constexpr const char* ENDPOINT_MAPS = "/api/v1/maps";
+    static constexpr const char* ENDPOINT_MAPS_PREFIX = "/api/v1/maps/";
     
-    static constexpr std::string_view ERR_BAD_REQUEST = "badRequest";
-    static constexpr std::string_view ERR_INVALID_METHOD = "invalidMethod";
-    static constexpr std::string_view ERR_INVALID_ARG = "invalidArgument";
-    static constexpr std::string_view ERR_NOT_FOUND = "mapNotFound";
-    static constexpr std::string_view ERR_UNAUTH = "invalidToken";
-    static constexpr std::string_view ERR_UNKNOWN_TOKEN = "unknownToken";
+    static constexpr const char* ERR_BAD_REQUEST = "badRequest";
+    static constexpr const char* ERR_INVALID_METHOD = "invalidMethod";
+    static constexpr const char* ERR_INVALID_ARG = "invalidArgument";
+    static constexpr const char* ERR_NOT_FOUND = "mapNotFound";
+    static constexpr const char* ERR_UNAUTH = "invalidToken";
+    static constexpr const char* ERR_UNKNOWN_TOKEN = "unknownToken";
 
-    static constexpr std::string_view KEY_ID = "id";
-    static constexpr std::string_view KEY_X = "x";
-    static constexpr std::string_view KEY_Y = "y";
-    static constexpr std::string_view KEY_OFFSET_X = "offsetX";
-    static constexpr std::string_view KEY_OFFSET_Y = "offsetY";
+    static constexpr const char* KEY_ID = "id";
+    static constexpr const char* KEY_X = "x";
+    static constexpr const char* KEY_Y = "y";
+    static constexpr const char* KEY_OFFSET_X = "offsetX";
+    static constexpr const char* KEY_OFFSET_Y = "offsetY";
 
     template <typename Request>
     auto MakeErrorResponse(http::status status, std::string_view code, std::string_view message, const Request& req, std::string_view allow_methods = "") {
