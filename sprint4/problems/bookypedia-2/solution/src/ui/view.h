@@ -1,8 +1,11 @@
+// src/ui/view.h
 #pragma once
 #include <iosfwd>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "../domain/author.h"
 
 namespace menu {
 class Menu;
@@ -39,13 +42,22 @@ public:
 
 private:
     bool AddAuthor(std::istream& cmd_input) const;
+    bool DeleteAuthor(std::istream& cmd_input) const;
+    bool EditAuthor(std::istream& cmd_input) const;
+
     bool AddBook(std::istream& cmd_input) const;
+    bool ShowBook(std::istream& cmd_input) const;
+    bool DeleteBook(std::istream& cmd_input) const;
+    bool EditBook(std::istream& cmd_input) const;
+
     bool ShowAuthors() const;
     bool ShowBooks() const;
     bool ShowAuthorBooks() const;
 
     std::optional<detail::AddBookParams> GetBookParams(std::istream& cmd_input) const;
     std::optional<std::string> SelectAuthor() const;
+    std::optional<domain::BookDto> SelectBook(const std::string& title_hint) const;
+
     std::vector<detail::AuthorInfo> GetAuthors() const;
     std::vector<detail::BookInfo> GetBooks() const;
     std::vector<detail::BookInfo> GetAuthorBooks(const std::string& author_id) const;
