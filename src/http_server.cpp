@@ -23,8 +23,12 @@ namespace http_server {
     }
 
     void SessionBase::Close() {
+        using namespace std::literals;
         beast::error_code ec;
         stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
+        if (ec) {
+            ReportError(ec, "shutdown"sv);
+        }
     }
 
     void SessionBase::OnRead(beast::error_code ec, [[maybe_unused]] std::size_t bytes_read) {
@@ -39,6 +43,7 @@ namespace http_server {
     }
 
     void SessionBase::OnWrite(bool close, beast::error_code ec, [[maybe_unused]] std::size_t bytes_written) {
+        using namespace std::literals;
         if (ec) {
             return ReportError(ec, "write"sv);
         }
