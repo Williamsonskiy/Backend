@@ -1,5 +1,6 @@
-// src/app/use_cases_impl.cpp
 #include "use_cases_impl.h"
+
+#include <stdexcept>
 
 #include "../domain/author.h"
 #include "../domain/book.h"
