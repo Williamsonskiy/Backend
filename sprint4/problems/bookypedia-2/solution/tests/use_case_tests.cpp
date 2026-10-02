@@ -1,3 +1,4 @@
+// tests/use_case_tests.cpp
 #include <catch2/catch_test_macros.hpp>
 
 #include "../src/app/use_cases_impl.h"
@@ -8,33 +9,28 @@ namespace {
 
 struct MockAuthorRepository : domain::AuthorRepository {
     std::vector<domain::Author> saved_authors;
-    std::vector<domain::Book> saved_books;
 
     void Save(const domain::Author& author) override {
         saved_authors.emplace_back(author);
     }
-
-    std::vector<domain::Author> GetAuthors() const override {
-        return saved_authors;
-    }
-
-    void SaveBook(const domain::Book& book) override {
-        saved_books.emplace_back(book);
-    }
-
-    std::vector<domain::Book> GetBooks() const override {
-        return saved_books;
-    }
-
-    std::vector<domain::Book> GetAuthorBooks(const std::string& author_id) const override {
-        std::vector<domain::Book> result;
-        for (const auto& book : saved_books) {
-            if (book.GetAuthorId() == author_id) {
-                result.push_back(book);
-            }
+    std::vector<domain::Author> GetAuthors() const override { return saved_authors; }
+    std::optional<domain::Author> GetAuthorByName(const std::string& name) const override {
+        for (const auto& a : saved_authors) {
+            if (a.GetName() == name) return a;
         }
-        return result;
+        return std::nullopt;
     }
+    void DeleteAuthor(const std::string& id) override {}
+    void EditAuthor(const std::string& id, const std::string& name) override {}
+
+    void SaveBook(const domain::Book& book, const std::vector<std::string>& tags) override {}
+    void AddBookWithNewAuthor(const domain::Book& book, const domain::Author& author, const std::vector<std::string>& tags) override {}
+    
+    std::vector<domain::BookDto> GetBooks() const override { return {}; }
+    std::vector<domain::BookDto> GetAuthorBooks(const std::string& author_id) const override { return {}; }
+    std::vector<domain::BookDto> GetBooksByTitle(const std::string& title) const override { return {}; }
+    void DeleteBook(const std::string& id) override {}
+    void EditBook(const std::string& id, const std::string& title, int pub_year, const std::vector<std::string>& tags) override {}
 };
 
 struct Fixture {
