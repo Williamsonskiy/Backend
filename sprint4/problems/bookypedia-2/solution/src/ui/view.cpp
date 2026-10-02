@@ -5,7 +5,7 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <set>
+#include <vector>
 #include <algorithm>
 #include <cctype>
 
@@ -41,7 +41,6 @@ void PrintVector(std::ostream& out, const std::vector<T>& vector) {
 namespace {
 std::vector<std::string> NormalizeTags(const std::string& tags_str) {
     std::vector<std::string> tags;
-    std::set<std::string> unique;
     std::stringstream ss(tags_str);
     std::string item;
     while (std::getline(ss, item, ',')) {
@@ -61,7 +60,7 @@ std::vector<std::string> NormalizeTags(const std::string& tags_str) {
                 in_space = false;
             }
         }
-        if (unique.insert(normalized).second) {
+        if (std::find(tags.begin(), tags.end(), normalized) == tags.end()) {
             tags.push_back(normalized);
         }
     }
@@ -108,7 +107,6 @@ bool View::DeleteAuthor(std::istream& cmd_input) const {
         if (name.empty()) {
             auto id_opt = SelectAuthor();
             if (!id_opt) {
-                output_ << "Failed to delete author" << std::endl;
                 return true;
             }
             author_id = *id_opt;
@@ -137,7 +135,6 @@ bool View::EditAuthor(std::istream& cmd_input) const {
         if (name.empty()) {
             auto id_opt = SelectAuthor();
             if (!id_opt) {
-                output_ << "Failed to edit author" << std::endl;
                 return true;
             }
             author_id = *id_opt;
@@ -184,7 +181,6 @@ bool View::AddBook(std::istream& cmd_input) const {
         if (author_input.empty()) {
             author_id = SelectAuthor();
             if (!author_id) {
-                output_ << "Failed to add book" << std::endl;
                 return true;
             }
         } else {
@@ -223,7 +219,12 @@ bool View::ShowBook(std::istream& cmd_input) const {
         std::getline(cmd_input, title);
         boost::algorithm::trim(title);
 
-        auto book = SelectBook(title);
+        auto books = title.empty() ? use_cases_.GetBooks() : use_cases_.GetBooksByTitle(title);
+        if (books.empty()) {
+            return true;
+        }
+        
+        auto book = SelectBookFromList(books);
         if (!book) return true;
         
         output_ << "Title: " << book->title << std::endl;
@@ -248,11 +249,15 @@ bool View::DeleteBook(std::istream& cmd_input) const {
         std::getline(cmd_input, title);
         boost::algorithm::trim(title);
 
-        auto book = SelectBook(title);
-        if (!book) {
-            output_ << "Failed to delete book" << std::endl;
+        auto books = title.empty() ? use_cases_.GetBooks() : use_cases_.GetBooksByTitle(title);
+        if (books.empty()) {
+            output_ << "Book not found" << std::endl;
             return true;
         }
+        
+        auto book = SelectBookFromList(books);
+        if (!book) return true;
+
         use_cases_.DeleteBook(book->id);
     } catch (...) {
         output_ << "Failed to delete book" << std::endl;
@@ -266,11 +271,14 @@ bool View::EditBook(std::istream& cmd_input) const {
         std::getline(cmd_input, title);
         boost::algorithm::trim(title);
 
-        auto book = SelectBook(title);
-        if (!book) {
+        auto books = title.empty() ? use_cases_.GetBooks() : use_cases_.GetBooksByTitle(title);
+        if (books.empty()) {
             output_ << "Book not found" << std::endl;
             return true;
         }
+        
+        auto book = SelectBookFromList(books);
+        if (!book) return true;
 
         output_ << "Enter new title or empty line to use the current one (" << book->title << "):" << std::endl;
         std::string new_title;
@@ -371,8 +379,7 @@ std::optional<std::string> View::SelectAuthor() const {
     return authors[author_idx].id;
 }
 
-std::optional<domain::BookDto> View::SelectBook(const std::string& title_hint) const {
-    auto books = title_hint.empty() ? use_cases_.GetBooks() : use_cases_.GetBooksByTitle(title_hint);
+std::optional<domain::BookDto> View::SelectBookFromList(const std::vector<domain::BookDto>& books) const {
     if (books.empty()) return std::nullopt;
     if (books.size() == 1) return books.front();
     
