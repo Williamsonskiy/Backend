@@ -1,6 +1,8 @@
+// src/postgres/postgres.h
 #pragma once
 #include <pqxx/connection>
 #include <pqxx/transaction>
+#include <vector>
 
 #include "../domain/author.h"
 
@@ -13,6 +15,11 @@ public:
     }
 
     void Save(const domain::Author& author) override;
+    std::vector<domain::Author> GetAuthors() const override;
+
+    void SaveBook(const domain::Book& book) override;
+    std::vector<domain::Book> GetBooks() const override;
+    std::vector<domain::Book> GetAuthorBooks(const std::string& author_id) const override;
 
 private:
     pqxx::connection& connection_;
