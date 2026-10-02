@@ -1,6 +1,6 @@
-// src/postgres/postgres.cpp
 #include "postgres.h"
 
+#include <pqxx/pqxx>
 #include <pqxx/zview.hxx>
 
 namespace postgres {
@@ -21,10 +21,10 @@ ON CONFLICT (id) DO UPDATE SET name=$2;
 
 std::vector<domain::Author> AuthorRepositoryImpl::GetAuthors() const {
     pqxx::read_transaction r{connection_};
-    auto result = r.query<std::string, std::string>("SELECT id, name FROM authors ORDER BY name;"_zv);
+    auto result = r.exec("SELECT id, name FROM authors ORDER BY name;"_zv);
     std::vector<domain::Author> authors;
-    for (const auto& [id_str, name] : result) {
-        authors.emplace_back(domain::AuthorId::FromString(id_str), name);
+    for (const auto& row : result) {
+        authors.emplace_back(domain::AuthorId::FromString(row[0].c_str()), row[1].c_str());
     }
     return authors;
 }
@@ -41,10 +41,10 @@ INSERT INTO books (id, author_id, title, publication_year) VALUES ($1, $2, $3, $
 
 std::vector<domain::Book> AuthorRepositoryImpl::GetBooks() const {
     pqxx::read_transaction r{connection_};
-    auto result = r.query<std::string, std::string, std::string, int>("SELECT id, author_id, title, publication_year FROM books ORDER BY title;"_zv);
+    auto result = r.exec("SELECT id, author_id, title, publication_year FROM books ORDER BY title;"_zv);
     std::vector<domain::Book> books;
-    for (const auto& [id_str, author_id_str, title, publication_year] : result) {
-        books.emplace_back(domain::BookId::FromString(id_str), author_id_str, title, publication_year);
+    for (const auto& row : result) {
+        books.emplace_back(domain::BookId::FromString(row[0].c_str()), row[1].c_str(), row[2].c_str(), row[3].as<int>());
     }
     return books;
 }
@@ -54,7 +54,7 @@ std::vector<domain::Book> AuthorRepositoryImpl::GetAuthorBooks(const std::string
     auto result = r.exec_params("SELECT id, author_id, title, publication_year FROM books WHERE author_id = $1 ORDER BY publication_year, title;"_zv, author_id);
     std::vector<domain::Book> books;
     for (const auto& row : result) {
-        books.emplace_back(domain::BookId::FromString(row[0].as<std::string>()), row[1].as<std::string>(), row[2].as<std::string>(), row[3].as<int>());
+        books.emplace_back(domain::BookId::FromString(row[0].c_str()), row[1].c_str(), row[2].c_str(), row[3].as<int>());
     }
     return books;
 }
