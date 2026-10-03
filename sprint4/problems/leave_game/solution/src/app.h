@@ -22,6 +22,12 @@ struct MapExtraData {
 
 class PlayerTokens {
 public:
+    PlayerTokens() {
+        std::random_device rd;
+        generator1_.seed(rd());
+        generator2_.seed(rd());
+    }
+
     Token GenerateToken() {
         std::stringstream ss;
         ss << std::hex << std::setfill('0')
@@ -30,9 +36,8 @@ public:
         return ss.str();
     }
 private:
-    std::random_device random_device_;
-    std::mt19937_64 generator1_{[this] { return random_device_(); }()};
-    std::mt19937_64 generator2_{[this] { return random_device_(); }()};
+    std::mt19937_64 generator1_;
+    std::mt19937_64 generator2_;
 };
 
 class Player {
