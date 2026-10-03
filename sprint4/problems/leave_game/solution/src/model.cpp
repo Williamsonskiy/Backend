@@ -53,8 +53,9 @@ Point2D GameSession::GetSpawnPosition() const {
 }
 
 Dog* GameSession::AddDog(const std::string& name) {
-    dogs_.emplace_back(dog_id_counter_++, name, GetSpawnPosition());
-    return &dogs_.back();
+    size_t id = dog_id_counter_++;
+    auto [it, inserted] = dogs_.emplace(id, Dog(id, name, GetSpawnPosition()));
+    return &it->second;
 }
 
 class SessionItemGathererProvider : public collision_detector::ItemGathererProvider {
@@ -92,12 +93,14 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
     std::vector<collision_detector::Gatherer> gatherers;
     std::vector<Dog*> dog_ptrs;
     
-    for (auto& dog : dogs_) {
+    for (auto& [id, dog] : dogs_) {
+        dog.UpdatePlayTime(delta);
         auto speed = dog.GetSpeed();
         auto start_pos = dog.GetPosition();
+        bool was_moving = (speed.ux != 0.0 || speed.uy != 0.0);
         
         Point2D pos = start_pos;
-        if (speed.ux != 0.0 || speed.uy != 0.0) {
+        if (was_moving) {
             double target_x = pos.x + speed.ux * delta_s;
             double target_y = pos.y + speed.uy * delta_s;
             
@@ -153,6 +156,12 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
                 }
             }
             dog.SetPosition(pos);
+        }
+        
+        if (was_moving) {
+            dog.ResetIdleTime();
+        } else {
+            dog.UpdateIdleTime(delta);
         }
         
         gatherers.push_back({geom::Point2D{start_pos.x, start_pos.y}, geom::Point2D{pos.x, pos.y}, 0.3});
