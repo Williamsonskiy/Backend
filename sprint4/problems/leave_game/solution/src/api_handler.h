@@ -56,7 +56,9 @@ private:
 
     template <typename Request>
     auto MakeErrorResponse(http::status status, std::string_view code, std::string_view message, const Request& req, std::string_view allow_methods = "") {
-        json::object obj = {{"code", code}, {"message", message}};
+        json::object obj;
+        obj["code"] = code;
+        obj["message"] = message;
         auto res = MakeJsonResponse(status, json::serialize(obj), req);
         if (!allow_methods.empty()) {
             res.set(http::field::allow, ToBoostStr(allow_methods));
@@ -108,10 +110,9 @@ private:
         }
 
         auto [token, player_id] = app_.JoinGame(user_name, map_id);
-        json::object response_obj = {
-            {"authToken", token},
-            {"playerId", player_id}
-        };
+        json::object response_obj;
+        response_obj["authToken"] = token;
+        response_obj["playerId"] = player_id;
 
         send(MakeJsonResponse(http::status::ok, json::serialize(response_obj), req));
     }
@@ -139,7 +140,9 @@ private:
 
         json::object players_obj;
         for (const auto& [id, dog] : player->GetSession()->GetDogs()) {
-            players_obj[std::to_string(id)] = json::object{{"name", dog.GetName()}};
+            json::object d_obj;
+            d_obj["name"] = dog.GetName();
+            players_obj[std::to_string(id)] = std::move(d_obj);
         }
 
         auto res = MakeJsonResponse(http::status::ok, json::serialize(players_obj), req);
@@ -178,12 +181,15 @@ private:
             
             json::array bag_arr;
             for (const auto& item : dog.GetBag()) {
-                bag_arr.push_back(json::object{{"id", item.id}, {"type", item.type}});
+                json::object b_obj;
+                b_obj["id"] = item.id;
+                b_obj["type"] = item.type;
+                bag_arr.push_back(std::move(b_obj));
             }
             dog_obj["bag"] = std::move(bag_arr);
             dog_obj["score"] = dog.GetScore();
 
-            players_obj[std::to_string(id)] = dog_obj;
+            players_obj[std::to_string(id)] = std::move(dog_obj);
         }
 
         json::object lost_objects_obj;
@@ -191,12 +197,12 @@ private:
             json::object lo_obj;
             lo_obj["type"] = lost_object.type;
             lo_obj["pos"] = json::array{lost_object.pos.x, lost_object.pos.y};
-            lost_objects_obj[std::to_string(id)] = lo_obj;
+            lost_objects_obj[std::to_string(id)] = std::move(lo_obj);
         }
 
         json::object root;
-        root["players"] = players_obj;
-        root["lostObjects"] = lost_objects_obj;
+        root["players"] = std::move(players_obj);
+        root["lostObjects"] = std::move(lost_objects_obj);
 
         auto res = MakeJsonResponse(http::status::ok, json::serialize(root), req);
         send(std::move(res));
@@ -326,11 +332,11 @@ private:
         
         json::array arr;
         for (const auto& rec : records) {
-            arr.push_back({
-                {"name", rec.name},
-                {"score", rec.score},
-                {"playTime", rec.play_time}
-            });
+            json::object obj;
+            obj["name"] = rec.name;
+            obj["score"] = rec.score;
+            obj["playTime"] = rec.play_time;
+            arr.push_back(std::move(obj));
         }
         
         send(MakeJsonResponse(http::status::ok, json::serialize(arr), req));
@@ -347,7 +353,7 @@ private:
             json::object map_json;
             map_json["id"] = *map.GetId();
             map_json["name"] = map.GetName();
-            maps_array.push_back(map_json);
+            maps_array.push_back(std::move(map_json));
         }
         send(MakeJsonResponse(http::status::ok, json::serialize(maps_array), req));
     }
@@ -361,4 +367,60 @@ private:
         std::string map_id = std::string(ToStdStr(req.target()).substr(13));
         const auto* map = app_.GetGame().FindMap(model::Map::Id{map_id});
         if (!map) {
-            return send(MakeErrorRe
+            return send(MakeErrorResponse(http::status::not_found, "mapNotFound", "Map not found", req));
+        }
+
+        json::object map_json;
+        map_json["id"] = *map->GetId();
+        map_json["name"] = map->GetName();
+        
+        json::array roads_arr;
+        for (const auto& road : map->GetRoads()) {
+            json::object road_json;
+            if (road.IsHorizontal()) {
+                road_json["x0"] = road.GetStart().x;
+                road_json["y0"] = road.GetStart().y;
+                road_json["x1"] = road.GetEnd().x;
+            } else {
+                road_json["x0"] = road.GetStart().x;
+                road_json["y0"] = road.GetStart().y;
+                road_json["y1"] = road.GetEnd().y;
+            }
+            roads_arr.push_back(std::move(road_json));
+        }
+        map_json["roads"] = std::move(roads_arr);
+
+        json::array buildings_arr;
+        for (const auto& building : map->GetBuildings()) {
+            json::object b_obj;
+            b_obj["x"] = building.GetBounds().position.x;
+            b_obj["y"] = building.GetBounds().position.y;
+            b_obj["w"] = building.GetBounds().size.width;
+            b_obj["h"] = building.GetBounds().size.height;
+            buildings_arr.push_back(std::move(b_obj));
+        }
+        map_json["buildings"] = std::move(buildings_arr);
+
+        json::array offices_arr;
+        for (const auto& office : map->GetOffices()) {
+            json::object o_obj;
+            o_obj["id"] = *office.GetId();
+            o_obj["x"] = office.GetPosition().x;
+            o_obj["y"] = office.GetPosition().y;
+            o_obj["offsetX"] = office.GetOffset().dx;
+            o_obj["offsetY"] = office.GetOffset().dy;
+            offices_arr.push_back(std::move(o_obj));
+        }
+        map_json["offices"] = std::move(offices_arr);
+
+        if (const auto* extra_data = app_.GetMapExtraData(map_id)) {
+            map_json["lootTypes"] = extra_data->loot_types;
+        } else {
+            map_json["lootTypes"] = json::array{};
+        }
+
+        send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
+    }
+};
+
+} // namespace http_handler
