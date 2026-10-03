@@ -44,7 +44,9 @@ public:
         , speed_(dog.GetSpeed())
         , direction_(dog.GetDirection())
         , score_(dog.GetScore())
-        , bag_content_(dog.GetBag()) {
+        , bag_content_(dog.GetBag())
+        , play_time_(dog.GetPlayTime().count())
+        , idle_time_(dog.GetIdleTime().count()) {
     }
     
     [[nodiscard]] model::Dog Restore() const {
@@ -55,6 +57,8 @@ public:
         for (const auto& item : bag_content_) {
             dog.PutToBag(item);
         }
+        dog.SetPlayTime(std::chrono::milliseconds(play_time_));
+        dog.SetIdleTime(std::chrono::milliseconds(idle_time_));
         return dog;
     }
     
@@ -69,6 +73,8 @@ public:
         direction_ = static_cast<model::Direction>(dir);
         ar & score_;
         ar & bag_content_;
+        ar & play_time_;
+        ar & idle_time_;
     }
 private:
     model::Dog::Id id_ = 0;
@@ -78,13 +84,15 @@ private:
     model::Direction direction_ = model::Direction::NORTH;
     size_t score_ = 0;
     std::vector<model::FoundObject> bag_content_;
+    long long play_time_ = 0;
+    long long idle_time_ = 0;
 };
 
 class GameSessionRepr {
 public:
     GameSessionRepr() = default;
     explicit GameSessionRepr(const model::GameSession& session) {
-        for (const auto& dog : session.GetDogs()) {
+        for (const auto& [id, dog] : session.GetDogs()) {
             dogs_.emplace_back(DogRepr(dog));
         }
         for (const auto& [id, lo] : session.GetLostObjects()) {
@@ -135,7 +143,7 @@ public:
     void Restore(app::App& app) const {
         for (const auto& [map_id_str, session_repr] : sessions_) {
             model::Map::Id map_id{map_id_str};
-            std::deque<model::Dog> dogs;
+            std::vector<model::Dog> dogs;
             for (const auto& dog_repr : session_repr.dogs_) {
                 dogs.push_back(dog_repr.Restore());
             }
