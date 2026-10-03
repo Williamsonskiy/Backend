@@ -86,6 +86,12 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
         loot_prob = prob_val.is_double() ? prob_val.as_double() : static_cast<double>(prob_val.as_int64());
     }
 
+    double dog_retirement_time = 60.0;
+    if (json_value.as_object().contains("dogRetirementTime")) {
+        const auto& v = json_value.as_object().at("dogRetirementTime");
+        dog_retirement_time = v.is_double() ? v.as_double() : static_cast<double>(v.as_int64());
+    }
+
     size_t default_bag_capacity = 3;
     if (json_value.as_object().contains("defaultBagCapacity")) {
         const auto& v = json_value.as_object().at("defaultBagCapacity");
@@ -94,6 +100,7 @@ std::pair<model::Game, std::unordered_map<std::string, app::MapExtraData>> LoadG
 
     model::Game game;
     game.SetLootParameters(loot_period, loot_prob);
+    game.SetDogRetirementTime(dog_retirement_time);
 
     std::unordered_map<std::string, app::MapExtraData> extra_data;
 
