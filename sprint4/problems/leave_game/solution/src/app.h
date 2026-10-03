@@ -1,5 +1,6 @@
 #pragma once
 #include "model.h"
+#include "postgres.h"
 #include <boost/json.hpp>
 #include <random>
 #include <string>
@@ -57,6 +58,9 @@ public:
         : game_(game), auto_tick_(auto_tick), extra_data_(std::move(extra_data)) {}
 
     bool IsAutoTick() const { return auto_tick_; }
+
+    void SetDatabase(std::shared_ptr<postgres::Database> db) { db_ = std::move(db); }
+    std::shared_ptr<postgres::Database> GetDatabase() const { return db_; }
 
     const MapExtraData* GetMapExtraData(const std::string& map_id) const {
         if (auto it = extra_data_.find(map_id); it != extra_data_.end()) {
@@ -116,6 +120,27 @@ public:
     void Tick(std::chrono::milliseconds delta) {
         game_.Tick(delta);
 
+        double retirement_ms = game_.GetDogRetirementTime() * 1000.0;
+        std::vector<Token> retired_tokens;
+        
+        for (const auto& [token, player] : player_tokens_) {
+            if (player->GetDog()->GetIdleTime().count() >= retirement_ms) {
+                retired_tokens.push_back(token);
+            }
+        }
+
+        for (const auto& token : retired_tokens) {
+            auto* player = player_tokens_[token].get();
+            auto* dog = player->GetDog();
+            
+            if (db_) {
+                db_->SaveRecord(dog->GetName(), dog->GetScore(), dog->GetPlayTime().count());
+            }
+            
+            player->GetSession()->RemoveDog(dog->GetId());
+            player_tokens_.erase(token);
+        }
+
         if (save_period_.count() > 0) {
             time_since_save_ += delta;
             if (time_since_save_ >= save_period_) {
@@ -133,6 +158,7 @@ private:
     PlayerTokens tokens_;
     std::unordered_map<Token, std::unique_ptr<Player>> player_tokens_;
     std::unordered_map<std::string, MapExtraData> extra_data_;
+    std::shared_ptr<postgres::Database> db_;
 
     SaveStateCallback save_state_callback_;
     std::chrono::milliseconds save_period_{0};
