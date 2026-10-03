@@ -4,6 +4,7 @@
 #include <boost/json.hpp>
 #include <string_view>
 #include <string>
+#include <sstream>
 
 namespace http_handler {
 
@@ -39,6 +40,8 @@ public:
             } else {
                 return HandleGameTick(std::move(req), std::forward<Send>(send));
             }
+        } else if (target == "/api/v1/game/records" || target.starts_with("/api/v1/game/records?")) {
+            return HandleGetRecords(std::move(req), std::forward<Send>(send));
         } else if (target == "/api/v1/maps") {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
         } else if (target.starts_with("/api/v1/maps/")) {
@@ -135,8 +138,8 @@ private:
         }
 
         json::object players_obj;
-        for (const auto& dog : player->GetSession()->GetDogs()) {
-            players_obj[std::to_string(dog.GetId())] = json::object{{"name", dog.GetName()}};
+        for (const auto& [id, dog] : player->GetSession()->GetDogs()) {
+            players_obj[std::to_string(id)] = json::object{{"name", dog.GetName()}};
         }
 
         auto res = MakeJsonResponse(http::status::ok, json::serialize(players_obj), req);
@@ -167,7 +170,7 @@ private:
         auto* session = player->GetSession();
         
         json::object players_obj;
-        for (const auto& dog : session->GetDogs()) {
+        for (const auto& [id, dog] : session->GetDogs()) {
             json::object dog_obj;
             dog_obj["pos"] = json::array{dog.GetPosition().x, dog.GetPosition().y};
             dog_obj["speed"] = json::array{dog.GetSpeed().ux, dog.GetSpeed().uy};
@@ -180,7 +183,7 @@ private:
             dog_obj["bag"] = std::move(bag_arr);
             dog_obj["score"] = dog.GetScore();
 
-            players_obj[std::to_string(dog.GetId())] = dog_obj;
+            players_obj[std::to_string(id)] = dog_obj;
         }
 
         json::object lost_objects_obj;
@@ -284,6 +287,56 @@ private:
     }
 
     template <typename Request, typename Send>
+    void HandleGetRecords(Request&& req, Send&& send) {
+        if (req.method() != http::verb::get && req.method() != http::verb::head) {
+            return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
+        }
+        
+        int start = 0;
+        int maxItems = 100;
+        
+        std::string target = std::string(ToStdStr(req.target()));
+        auto q_pos = target.find('?');
+        if (q_pos != std::string::npos) {
+            std::string query = target.substr(q_pos + 1);
+            std::istringstream ss(query);
+            std::string keyval;
+            while (std::getline(ss, keyval, '&')) {
+                auto eq = keyval.find('=');
+                if (eq != std::string::npos) {
+                    std::string key = keyval.substr(0, eq);
+                    std::string val = keyval.substr(eq + 1);
+                    if (key == "start") {
+                        try { start = std::stoi(val); } catch (...) {}
+                    } else if (key == "maxItems") {
+                        try { maxItems = std::stoi(val); } catch (...) {}
+                    }
+                }
+            }
+        }
+        
+        if (maxItems > 100) {
+            return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "maxItems can't be greater than 100", req));
+        }
+        
+        std::vector<postgres::Record> records;
+        if (app_.GetDatabase()) {
+            records = app_.GetDatabase()->GetRecords(start, maxItems);
+        }
+        
+        json::array arr;
+        for (const auto& rec : records) {
+            arr.push_back({
+                {"name", rec.name},
+                {"score", rec.score},
+                {"playTime", rec.play_time}
+            });
+        }
+        
+        send(MakeJsonResponse(http::status::ok, json::serialize(arr), req));
+    }
+
+    template <typename Request, typename Send>
     void HandleGetMaps(Request&& req, Send&& send) {
         if (req.method() != http::verb::get && req.method() != http::verb::head) {
             return send(MakeErrorResponse(http::status::method_not_allowed, "invalidMethod", "Invalid method", req, "GET, HEAD"));
@@ -308,57 +361,4 @@ private:
         std::string map_id = std::string(ToStdStr(req.target()).substr(13));
         const auto* map = app_.GetGame().FindMap(model::Map::Id{map_id});
         if (!map) {
-            return send(MakeErrorResponse(http::status::not_found, "mapNotFound", "Map not found", req));
-        }
-
-        json::object map_json;
-        map_json["id"] = *map->GetId();
-        map_json["name"] = map->GetName();
-        
-        map_json["roads"] = json::array{};
-        for (const auto& road : map->GetRoads()) {
-            json::object road_json;
-            if (road.IsHorizontal()) {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["x1"] = road.GetEnd().x;
-            } else {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["y1"] = road.GetEnd().y;
-            }
-            map_json["roads"].as_array().push_back(road_json);
-        }
-
-        map_json["buildings"] = json::array{};
-        for (const auto& building : map->GetBuildings()) {
-            map_json["buildings"].as_array().push_back({
-                {"x", building.GetBounds().position.x},
-                {"y", building.GetBounds().position.y},
-                {"w", building.GetBounds().size.width},
-                {"h", building.GetBounds().size.height}
-            });
-        }
-
-        map_json["offices"] = json::array{};
-        for (const auto& office : map->GetOffices()) {
-            map_json["offices"].as_array().push_back({
-                {"id", *office.GetId()},
-                {"x", office.GetPosition().x},
-                {"y", office.GetPosition().y},
-                {"offsetX", office.GetOffset().dx},
-                {"offsetY", office.GetOffset().dy}
-            });
-        }
-
-        if (const auto* extra_data = app_.GetMapExtraData(map_id)) {
-            map_json["lootTypes"] = extra_data->loot_types;
-        } else {
-            map_json["lootTypes"] = json::array{};
-        }
-
-        send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
-    }
-};
-
-} // namespace http_handler
+            return send(MakeErrorRe
