@@ -31,7 +31,7 @@ public:
     };
 
     ConnectionWrapper GetConnection() {
-        std::unique_lock lock(mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         cond_var_.wait(lock, [this] { return !pool_.empty(); });
         auto conn = std::move(pool_.back());
         pool_.pop_back();
@@ -40,7 +40,7 @@ public:
 
 private:
     void ReturnConnection(std::unique_ptr<pqxx::connection> conn) {
-        std::lock_guard lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         pool_.push_back(std::move(conn));
         cond_var_.notify_one();
     }
