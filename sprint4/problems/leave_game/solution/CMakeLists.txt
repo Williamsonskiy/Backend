@@ -46,6 +46,7 @@ add_executable(game_server
     src/logger.h
     src/serialization.h
     src/postgres.h
+    src/postgres.cpp
 )
 
 target_link_libraries(game_server PRIVATE
