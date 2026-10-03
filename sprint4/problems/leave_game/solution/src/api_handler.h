@@ -57,8 +57,8 @@ private:
     template <typename Request>
     auto MakeErrorResponse(http::status status, std::string_view code, std::string_view message, const Request& req, std::string_view allow_methods = "") {
         json::object obj;
-        obj["code"] = code;
-        obj["message"] = message;
+        obj["code"] = std::string(code);
+        obj["message"] = std::string(message);
         auto res = MakeJsonResponse(status, json::serialize(obj), req);
         if (!allow_methods.empty()) {
             res.set(http::field::allow, ToBoostStr(allow_methods));
