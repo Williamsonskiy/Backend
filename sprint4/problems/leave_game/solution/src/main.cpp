@@ -15,6 +15,7 @@
 #include "http_server.h"
 #include "ticker.h"
 #include "serialization.h"
+#include "postgres.h"
 
 namespace net = boost::asio;
 namespace sys = boost::system;
@@ -138,11 +139,26 @@ int main(int argc, char* argv[]) {
     }
 
     try {
+        const char* db_url = std::getenv("GAME_DB_URL");
+        std::shared_ptr<postgres::Database> db;
+        if (db_url) {
+            try {
+                db = std::make_shared<postgres::Database>(db_url);
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to connect to database: " << e.what() << std::endl;
+                logger::LogServerExited(EXIT_FAILURE, e.what());
+                return EXIT_FAILURE;
+            }
+        } else {
+            std::cerr << "Warning: GAME_DB_URL environment variable is not set" << std::endl;
+        }
+
         auto [game, extra_data] = json_loader::LoadGame(args->config_file);
         game.SetRandomizedSpawn(args->randomize_spawn_points);
 
         bool auto_tick = args->tick_period.has_value();
         app::App app(game, auto_tick, std::move(extra_data));
+        app.SetDatabase(db);
 
         if (!args->state_file.empty()) {
             if (std::filesystem::exists(args->state_file)) {
