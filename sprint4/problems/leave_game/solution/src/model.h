@@ -154,6 +154,14 @@ public:
     void EmptyBag() { bag_.clear(); }
     void AddScore(size_t points) { score_ += points; }
 
+    void UpdatePlayTime(std::chrono::milliseconds pt) { play_time_ += pt; }
+    void UpdateIdleTime(std::chrono::milliseconds it) { idle_time_ += it; }
+    void ResetIdleTime() { idle_time_ = std::chrono::milliseconds(0); }
+    void SetPlayTime(std::chrono::milliseconds pt) { play_time_ = pt; }
+    void SetIdleTime(std::chrono::milliseconds it) { idle_time_ = it; }
+    std::chrono::milliseconds GetPlayTime() const { return play_time_; }
+    std::chrono::milliseconds GetIdleTime() const { return idle_time_; }
+
     void Move(std::string_view move_cmd, double speed) {
         if (move_cmd == "U") {
             dir_ = Direction::NORTH;
@@ -180,6 +188,9 @@ private:
     Direction dir_;
     std::vector<FoundObject> bag_;
     size_t score_;
+    
+    std::chrono::milliseconds play_time_{0};
+    std::chrono::milliseconds idle_time_{0};
 };
 
 class GameSession {
@@ -191,26 +202,29 @@ public:
     const Map* GetMap() const { return map_; }
     
     Dog* AddDog(const std::string& name);
+    void RemoveDog(size_t id) { dogs_.erase(id); }
+
     void Tick(std::chrono::milliseconds delta);
     
-    const std::deque<Dog>& GetDogs() const { return dogs_; }
+    const std::map<size_t, Dog>& GetDogs() const { return dogs_; }
     const std::map<size_t, LostObject>& GetLostObjects() const { return lost_objects_; }
 
     Dog* GetDogById(size_t id) {
-        for (auto& dog : dogs_) {
-            if (dog.GetId() == id) return &dog;
+        if (auto it = dogs_.find(id); it != dogs_.end()) {
+            return &it->second;
         }
         return nullptr;
     }
 
-    void LoadState(std::deque<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
-        dogs_ = std::move(dogs);
-        lost_objects_ = std::move(lost_objects);
-        for (const auto& dog : dogs_) {
+    void LoadState(std::vector<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
+        dogs_.clear();
+        for (auto& dog : dogs) {
             if (dog.GetId() >= dog_id_counter_) {
                 dog_id_counter_ = dog.GetId() + 1;
             }
+            dogs_.emplace(dog.GetId(), std::move(dog));
         }
+        lost_objects_ = std::move(lost_objects);
         for (const auto& [id, obj] : lost_objects_) {
             if (id >= lost_object_id_counter_) {
                 lost_object_id_counter_ = id + 1;
@@ -224,7 +238,7 @@ private:
 
     const Map* map_;
     bool random_spawn_;
-    std::deque<Dog> dogs_;
+    std::map<size_t, Dog> dogs_;
     size_t dog_id_counter_ = 0;
 
     loot_gen::LootGenerator loot_generator_;
@@ -241,6 +255,8 @@ public:
         loot_period_ = period;
         loot_probability_ = probability;
     }
+    void SetDogRetirementTime(double t) { dog_retirement_time_ = t; }
+    double GetDogRetirementTime() const { return dog_retirement_time_; }
 
     void AddMap(Map map);
     const Maps& GetMaps() const noexcept { return maps_; }
@@ -255,7 +271,7 @@ public:
     
     void Tick(std::chrono::milliseconds delta);
 
-    void LoadSession(const Map::Id& map_id, std::deque<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
+    void LoadSession(const Map::Id& map_id, std::vector<Dog> dogs, std::map<size_t, LostObject> lost_objects) {
         auto* session = GetSession(map_id);
         if (!session) {
             session = AddSession(map_id);
@@ -274,6 +290,7 @@ private:
     bool random_spawn_ = false;
     double loot_period_ = 5.0;
     double loot_probability_ = 0.5;
+    double dog_retirement_time_ = 60.0;
     
     std::deque<GameSession> sessions_;
     MapIdToIndex map_id_to_session_index_;
