@@ -29,15 +29,16 @@ Point2D GameSession::GetRandomRoadPosition() const {
         return {0.0, 0.0};
     }
     const auto& road = roads[GetRandomIndex(roads.size() - 1)];
+    
     if (road.IsHorizontal()) {
         double start_x = std::min(road.GetStart().x, road.GetEnd().x);
         double end_x = std::max(road.GetStart().x, road.GetEnd().x);
         return {GetRandomDouble(start_x, end_x), static_cast<double>(road.GetStart().y)};
-    } else {
-        double start_y = std::min(road.GetStart().y, road.GetEnd().y);
-        double end_y = std::max(road.GetStart().y, road.GetEnd().y);
-        return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
     }
+    
+    double start_y = std::min(road.GetStart().y, road.GetEnd().y);
+    double end_y = std::max(road.GetStart().y, road.GetEnd().y);
+    return {static_cast<double>(road.GetStart().x), GetRandomDouble(start_y, end_y)};
 }
 
 Point2D GameSession::GetSpawnPosition() const {
@@ -133,27 +134,21 @@ void GameSession::Tick(std::chrono::milliseconds delta) {
                     }
                 }
                 
-                if (horizontal) {
-                    if (positive) { 
-                        if (bound_x <= pos.x + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                        if (target_x <= bound_x) { pos.x = target_x; break; }
-                        pos.x = bound_x;
-                    } else { 
-                        if (bound_x >= pos.x - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                        if (target_x >= bound_x) { pos.x = target_x; break; }
-                        pos.x = bound_x;
-                    }
-                } else {
-                    if (positive) { 
-                        if (bound_y <= pos.y + 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                        if (target_y <= bound_y) { pos.y = target_y; break; }
-                        pos.y = bound_y;
-                    } else { 
-                        if (bound_y >= pos.y - 1e-8) { dog.SetSpeed({0.0, 0.0}); break; }
-                        if (target_y >= bound_y) { pos.y = target_y; break; }
-                        pos.y = bound_y;
-                    }
+                double& current_pos = horizontal ? pos.x : pos.y;
+                double target_pos = horizontal ? target_x : target_y;
+                double bound = horizontal ? bound_x : bound_y;
+
+                if (positive ? (bound <= current_pos + 1e-8) : (bound >= current_pos - 1e-8)) {
+                    dog.SetSpeed({0.0, 0.0});
+                    break;
                 }
+                
+                if (positive ? (target_pos <= bound) : (target_pos >= bound)) {
+                    current_pos = target_pos;
+                    break;
+                }
+                
+                current_pos = bound;
             }
             dog.SetPosition(pos);
         }
