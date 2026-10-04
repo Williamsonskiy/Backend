@@ -5,6 +5,7 @@
 #include <string_view>
 #include <string>
 #include <sstream>
+#include <exception>
 
 namespace http_handler {
 
@@ -18,6 +19,37 @@ inline std::string_view ToStdStr(boost::beast::string_view s) {
     return {s.data(), s.size()};
 }
 
+namespace Endpoint {
+    constexpr std::string_view GAME_JOIN = "/api/v1/game/join";
+    constexpr std::string_view GAME_PLAYERS = "/api/v1/game/players";
+    constexpr std::string_view GAME_STATE = "/api/v1/game/state";
+    constexpr std::string_view GAME_ACTION = "/api/v1/game/player/action";
+    constexpr std::string_view GAME_TICK = "/api/v1/game/tick";
+    constexpr std::string_view GAME_RECORDS = "/api/v1/game/records";
+    constexpr std::string_view GAME_RECORDS_PREFIX = "/api/v1/game/records?";
+    constexpr std::string_view MAPS = "/api/v1/maps";
+    constexpr std::string_view MAPS_PREFIX = "/api/v1/maps/";
+}
+
+namespace JsonKey {
+    constexpr const char* ID = "id";
+    constexpr const char* NAME = "name";
+    constexpr const char* ROADS = "roads";
+    constexpr const char* BUILDINGS = "buildings";
+    constexpr const char* OFFICES = "offices";
+    constexpr const char* X0 = "x0";
+    constexpr const char* Y0 = "y0";
+    constexpr const char* X1 = "x1";
+    constexpr const char* Y1 = "y1";
+    constexpr const char* X = "x";
+    constexpr const char* Y = "y";
+    constexpr const char* W = "w";
+    constexpr const char* H = "h";
+    constexpr const char* OFFSET_X = "offsetX";
+    constexpr const char* OFFSET_Y = "offsetY";
+    constexpr const char* LOOT_TYPES = "lootTypes";
+}
+
 class ApiHandler {
 public:
     explicit ApiHandler(app::App& app) : app_(app) {}
@@ -26,25 +58,24 @@ public:
     void HandleRequest(http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
         std::string_view target = ToStdStr(req.target());
 
-        if (target == "/api/v1/game/join") {
+        if (target == Endpoint::GAME_JOIN) {
             return HandleJoinGame(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/game/players") {
+        } else if (target == Endpoint::GAME_PLAYERS) {
             return HandleGetPlayers(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/game/state") {
+        } else if (target == Endpoint::GAME_STATE) {
             return HandleGetGameState(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/game/player/action") {
+        } else if (target == Endpoint::GAME_ACTION) {
             return HandlePlayerAction(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/game/tick") {
+        } else if (target == Endpoint::GAME_TICK) {
             if (app_.IsAutoTick()) {
                 return send(MakeErrorResponse(http::status::bad_request, "badRequest", "Invalid endpoint", req));
-            } else {
-                return HandleGameTick(std::move(req), std::forward<Send>(send));
             }
-        } else if (target == "/api/v1/game/records" || target.starts_with("/api/v1/game/records?")) {
+            return HandleGameTick(std::move(req), std::forward<Send>(send));
+        } else if (target == Endpoint::GAME_RECORDS || target.starts_with(Endpoint::GAME_RECORDS_PREFIX)) {
             return HandleGetRecords(std::move(req), std::forward<Send>(send));
-        } else if (target == "/api/v1/maps") {
+        } else if (target == Endpoint::MAPS) {
             return HandleGetMaps(std::move(req), std::forward<Send>(send));
-        } else if (target.starts_with("/api/v1/maps/")) {
+        } else if (target.starts_with(Endpoint::MAPS_PREFIX)) {
             return HandleGetMap(std::move(req), std::forward<Send>(send));
         }
         
@@ -96,7 +127,7 @@ private:
             }
             user_name = json::value_to<std::string>(obj.at("userName"));
             map_id_str = json::value_to<std::string>(obj.at("mapId"));
-        } catch (...) {
+        } catch (const std::exception&) {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Join game request parse error", req));
         }
 
@@ -244,7 +275,7 @@ private:
             if (move_cmd != "U" && move_cmd != "D" && move_cmd != "L" && move_cmd != "R" && move_cmd != "") {
                 return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse action", req));
             }
-        } catch (...) {
+        } catch (const std::exception&) {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse action", req));
         }
 
@@ -282,7 +313,7 @@ private:
             } else {
                 return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
             }
-        } catch (...) {
+        } catch (const std::exception&) {
             return send(MakeErrorResponse(http::status::bad_request, "invalidArgument", "Failed to parse tick request JSON", req));
         }
 
@@ -313,9 +344,9 @@ private:
                     std::string key = keyval.substr(0, eq);
                     std::string val = keyval.substr(eq + 1);
                     if (key == "start") {
-                        try { start = std::stoi(val); } catch (...) {}
+                        try { start = std::stoi(val); } catch (const std::exception&) {}
                     } else if (key == "maxItems") {
-                        try { maxItems = std::stoi(val); } catch (...) {}
+                        try { maxItems = std::stoi(val); } catch (const std::exception&) {}
                     }
                 }
             }
@@ -351,8 +382,8 @@ private:
         json::array maps_array;
         for (const auto& map : app_.GetGame().GetMaps()) {
             json::object map_json;
-            map_json["id"] = *map.GetId();
-            map_json["name"] = map.GetName();
+            map_json[JsonKey::ID] = *map.GetId();
+            map_json[JsonKey::NAME] = map.GetName();
             maps_array.push_back(std::move(map_json));
         }
         send(MakeJsonResponse(http::status::ok, json::serialize(maps_array), req));
@@ -371,52 +402,52 @@ private:
         }
 
         json::object map_json;
-        map_json["id"] = *map->GetId();
-        map_json["name"] = map->GetName();
+        map_json[JsonKey::ID] = *map->GetId();
+        map_json[JsonKey::NAME] = map->GetName();
         
         json::array roads_arr;
         for (const auto& road : map->GetRoads()) {
             json::object road_json;
             if (road.IsHorizontal()) {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["x1"] = road.GetEnd().x;
+                road_json[JsonKey::X0] = road.GetStart().x;
+                road_json[JsonKey::Y0] = road.GetStart().y;
+                road_json[JsonKey::X1] = road.GetEnd().x;
             } else {
-                road_json["x0"] = road.GetStart().x;
-                road_json["y0"] = road.GetStart().y;
-                road_json["y1"] = road.GetEnd().y;
+                road_json[JsonKey::X0] = road.GetStart().x;
+                road_json[JsonKey::Y0] = road.GetStart().y;
+                road_json[JsonKey::Y1] = road.GetEnd().y;
             }
             roads_arr.push_back(std::move(road_json));
         }
-        map_json["roads"] = std::move(roads_arr);
+        map_json[JsonKey::ROADS] = std::move(roads_arr);
 
         json::array buildings_arr;
         for (const auto& building : map->GetBuildings()) {
             json::object b_obj;
-            b_obj["x"] = building.GetBounds().position.x;
-            b_obj["y"] = building.GetBounds().position.y;
-            b_obj["w"] = building.GetBounds().size.width;
-            b_obj["h"] = building.GetBounds().size.height;
+            b_obj[JsonKey::X] = building.GetBounds().position.x;
+            b_obj[JsonKey::Y] = building.GetBounds().position.y;
+            b_obj[JsonKey::W] = building.GetBounds().size.width;
+            b_obj[JsonKey::H] = building.GetBounds().size.height;
             buildings_arr.push_back(std::move(b_obj));
         }
-        map_json["buildings"] = std::move(buildings_arr);
+        map_json[JsonKey::BUILDINGS] = std::move(buildings_arr);
 
         json::array offices_arr;
         for (const auto& office : map->GetOffices()) {
             json::object o_obj;
-            o_obj["id"] = *office.GetId();
-            o_obj["x"] = office.GetPosition().x;
-            o_obj["y"] = office.GetPosition().y;
-            o_obj["offsetX"] = office.GetOffset().dx;
-            o_obj["offsetY"] = office.GetOffset().dy;
+            o_obj[JsonKey::ID] = *office.GetId();
+            o_obj[JsonKey::X] = office.GetPosition().x;
+            o_obj[JsonKey::Y] = office.GetPosition().y;
+            o_obj[JsonKey::OFFSET_X] = office.GetOffset().dx;
+            o_obj[JsonKey::OFFSET_Y] = office.GetOffset().dy;
             offices_arr.push_back(std::move(o_obj));
         }
-        map_json["offices"] = std::move(offices_arr);
+        map_json[JsonKey::OFFICES] = std::move(offices_arr);
 
         if (const auto* extra_data = app_.GetMapExtraData(map_id)) {
-            map_json["lootTypes"] = extra_data->loot_types;
+            map_json[JsonKey::LOOT_TYPES] = extra_data->loot_types;
         } else {
-            map_json["lootTypes"] = json::array{};
+            map_json[JsonKey::LOOT_TYPES] = json::array{};
         }
 
         send(MakeJsonResponse(http::status::ok, json::serialize(map_json), req));
